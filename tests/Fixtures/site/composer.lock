@@ -1,0 +1,16 @@
+{
+    "content-hash": "fixture",
+    "packages": [
+        { "name": "acencyril/sentinelle-bundle", "version": "v0.3.1" },
+        { "name": "doctrine/orm", "version": "3.3.1" },
+        { "name": "symfony/console", "version": "v7.4.1" },
+        { "name": "symfony/flex", "version": "v2.8.0" },
+        { "name": "symfony/framework-bundle", "version": "v7.4.1" },
+        { "name": "symfony/yaml", "version": "v7.4.1" },
+        { "name": "twig/twig", "version": "v3.21.0" }
+    ],
+    "packages-dev": [
+        { "name": "phpunit/phpunit", "version": "11.5.2" },
+        { "name": "symfony/browser-kit", "version": "v7.4.1" }
+    ]
+}
