@@ -6,6 +6,15 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- The commands Uplift runs (composer, Rector, the test command) no longer inherit what
+  the application's `.env` files loaded into the console process. Run from
+  `bin/console`, `APP_ENV=dev` reached the test command, whose Dotenv loaded `.env` over
+  PHPUnit's `APP_ENV=test`: functional tests booted the dev kernel and failed ("the
+  framework.test config is not set"), so every upgrade and every adoption was reported
+  as failing its tests and put back. Found by an end-to-end run on a real Symfony 7.3
+  application.
+
 ## [0.1.0] — 2026-10-25
 
 First release.

@@ -25,6 +25,17 @@ run() {
         fail "$name failed" "$* (exit $rc)"$'\n'"$(tail -c 4000 "$LOGS/$name.log")"
     fi
 }
+# soft NAME CMD...: the same, but a failure is left to check.php, which says what went wrong.
+soft() {
+    local name=$1; shift
+    echo "+ $*"
+    (cd "$APP" && "$@") >"$LOGS/$name.log" 2>&1
+    local rc=$?
+    cat "$LOGS/$name.log"
+    if [ $rc -ne 0 ]; then
+        echo "::warning title=$name exit $rc::$(escape "$(tail -c 3000 "$LOGS/$name.log")")"
+    fi
+}
 check() { php "$E2E/check.php" "$1" "$APP" "$LOGS" || exit 1; }
 version() { grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' "$WS/$1/CHANGELOG.md" | tr -dc '0-9.'; }
 
@@ -66,7 +77,7 @@ plan)
     check plan
     ;;
 apply)
-    run apply php bin/console uplift:apply --rehearsal=.rehearsal/changes.json -v
+    soft apply php bin/console uplift:apply --rehearsal=.rehearsal/changes.json -v
     (cd "$APP" && git diff --stat -- src && git diff -- src) >"$LOGS/rector-diff.log" 2>&1
     check apply
     (cd "$APP" && git add -A && git -c user.name=e2e -c user.email=e2e@example.com commit -qm "uplift:apply") >/dev/null 2>&1
