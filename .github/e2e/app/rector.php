@@ -1,9 +1,9 @@
 <?php
 
 // The project's own Rector configuration: uplift:apply runs it after the version move.
+// Composer-based sets: the Symfony rules up to the installed version.
 use Rector\Config\RectorConfig;
-use Rector\Symfony\Set\SymfonySetList;
 
 return RectorConfig::configure()
     ->withPaths([__DIR__.'/src/Controller'])
-    ->withSets([SymfonySetList::SYMFONY_64]);
+    ->withComposerBased(symfony: true);

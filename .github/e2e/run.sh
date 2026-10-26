@@ -68,6 +68,7 @@ setup)
     unset COMPOSER_NO_SECURITY_BLOCKING
     cp "$APP/composer.json" "$LOGS/before.composer.json"
     cp "$APP/composer.lock" "$LOGS/before.composer.lock"
+    rm -rf "$APP/var/cache/test"  # deprecations are triggered when the container is built
     run tests-before vendor/bin/phpunit --testsuite app
     run deprecations-before php bin/console debug:container --deprecations
     check before
@@ -81,6 +82,7 @@ apply)
     (cd "$APP" && git diff --stat -- src && git diff -- src) >"$LOGS/rector-diff.log" 2>&1
     check apply
     (cd "$APP" && git add -A && git -c user.name=e2e -c user.email=e2e@example.com commit -qm "uplift:apply") >/dev/null 2>&1
+    rm -rf "$APP/var/cache/test"
     run tests-after vendor/bin/phpunit --testsuite app
     run deprecations-after php bin/console debug:container --deprecations
     check after

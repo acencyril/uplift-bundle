@@ -21,6 +21,8 @@ versioning follows [SemVer](https://semver.org/).
 - `report.json` and the Rehearsal changes file are written even when a command's output
   is not valid UTF-8 (the invalid bytes are replaced); `json_encode()` used to fail and
   leave an empty report.
+- When the project's Rector fails, `uplift:apply` says so in its notes (and the
+  report), next to the result of the tests: it used to end on "tests passed" alone.
 
 ## [0.1.0] — 2026-10-25
 

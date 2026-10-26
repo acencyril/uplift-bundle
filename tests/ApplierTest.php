@@ -27,10 +27,7 @@ final class ApplierTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (glob($this->dir.'/*') ?: [] as $f) {
-            unlink($f);
-        }
-        rmdir($this->dir);
+        exec('rm -rf '.escapeshellarg($this->dir));
     }
 
     /** @param array<string, string> $env */
@@ -144,6 +141,19 @@ final class ApplierTest extends TestCase
         self::assertSame('tests_failed', $result->status);
         self::assertSame(2, $result->steps['tests']['exit_code']);
         self::assertStringContainsString('FAILURES!', $result->steps['tests']['output']);
+    }
+
+    public function testAFailedRectorIsSaid(): void
+    {
+        mkdir($this->dir.'/vendor/bin', 0o777, true);
+        touch($this->dir.'/vendor/bin/rector');
+        touch($this->dir.'/rector.php');
+        $runner = new FakeRunner(['vendor/bin/rector' => new RunResult(1, '[ERROR] Undefined constant Rector\\Symfony\\Set\\SymfonySetList::SYMFONY_64')]);
+        $result = $this->apply('site', ['UPLIFT_ENABLED' => '1'], $runner);
+
+        self::assertSame('passed', $result->status, 'the tests decide');
+        self::assertSame('failed', $result->steps['rector']['status']);
+        self::assertNotEmpty(array_filter($result->notes, static fn (string $n) => str_starts_with($n, 'Rector failed')));
     }
 
     public function testNoTestCommandMeansUntested(): void

@@ -106,6 +106,9 @@ final class Applier
         if (($options['rector'] ?? true) && is_file($dir.'/vendor/bin/rector') && is_file($dir.'/rector.php')) {
             $rector = $this->runner->run(['vendor/bin/rector', 'process', '--no-progress-bar', '--no-ansi'], $dir, 1800);
             $result->step('rector', $rector->ok() ? 'done' : 'failed', 'vendor/bin/rector process', $rector->exitCode, $rector->tail());
+            if (!$rector->ok()) {
+                $result->notes[] = 'Rector failed (see its output in the report): the code was not rewritten for the new versions. Check rector.php.';
+            }
         } else {
             $result->step('rector', 'skipped');
         }
