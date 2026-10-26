@@ -48,7 +48,7 @@ final class AdoptReportTest extends TestCase
         $adopter = new Adopter(new Catalog([new MapRequest(), new AsCommandAttribute(), new ReadonlyPromotion(), new LockAttribute()]), new Scanner(),
             new FakeRunner(['make test' => [0, new RunResult(1, "FAILURES!\nTests: 3, Failures: 1.")]], ['vendor/bin/rector' => AdopterTest::rector()]));
         $project = new ComposerProject($this->dir);
-        $plan = $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => 'make test']), ['src'], 'en', '8.3.12');
+        $plan = $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => 'make test', 'UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion']), ['src'], 'en', '8.3.12');
 
         return [$plan, $adopter->apply($project, $plan)];
     }

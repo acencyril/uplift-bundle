@@ -42,6 +42,10 @@ final class Adopter
                 $findings[$a->id()] = new Finding($a, 'skipped', $title, $summary, reason: 'in UPLIFT_ADOPT_SKIP');
                 continue;
             }
+            if ($a instanceof OptIn && !\in_array($a->id(), $policy->adoptOptIn, true)) {
+                $findings[$a->id()] = new Finding($a, 'skipped', $title, $summary, reason: sprintf('off by default: opt in with UPLIFT_ADOPT_OPT_IN=%s', $a->id()));
+                continue;
+            }
             $installed = 'php' === $a->package() ? $project->phpVersion($runtimePhp) : $project->installed($a->package());
             $min = Version::of($a->minVersion());
             if (null === $installed) {
@@ -60,7 +64,7 @@ final class Adopter
             $candidates = $result['candidates'][$a->id()] ?? [];
             [$decision, $reason] = match (true) {
                 [] === $candidates => ['none', 'nothing found to rewrite'],
-                $a->experimental() => ['propose', 'experimental: the API is to be confirmed, never applied'],
+                $a->experimental() && !$a instanceof OptIn => ['propose', 'experimental: the API is to be confirmed, never applied'],
                 null === $a->rector() => ['manual', 'no automatic rewrite: a person makes the change'],
                 'apply' === $policy->adopt => ['apply', 'Rector rewrites it, then the tests decide'],
                 default => ['propose', 'UPLIFT_ADOPT=propose: a person decides'],

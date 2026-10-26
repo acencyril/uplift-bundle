@@ -16,6 +16,24 @@ composer require acencyril/uplift-bundle
 php bin/console uplift:plan
 ```
 
+### A real run
+
+From the [end-to-end workflow](.github/workflows/e2e.yml): a fresh Symfony 7.3 app,
+`UPLIFT_SYMFONY=minor`, then `uplift:apply` and `uplift:adopt --apply`, with the real
+Packagist and the app's own tests.
+
+| | |
+|---|---|
+| Symfony | 7.3.11 → 7.4.21 |
+| Packages updated | 40 |
+| `composer.json` constraints rewritten | 11 (`7.3.*` → `7.4.*`) |
+| Deprecations fixed by Rector | 1 (the old `Routing\Annotation\Route`, `RenameAttributeRector`) |
+| New features adopted | 2 (`as-command`, `readonly-promotion`, opted in), tests passed after each |
+| Tests | passed |
+
+DoctrineBundle 3, DoctrineMigrationsBundle 4 and PHPUnit 12 were held back and the report
+said why (they need a newer PHP than the project's 8.2).
+
 ---
 
 ## The policy
@@ -32,7 +50,7 @@ a code change:
 | `UPLIFT_PHP_MAX` | a branch, e.g. `8.1` | none | a hard ceiling for PHP (see below) |
 | `UPLIFT_OWN_VENDOR` | vendors, comma-separated, or `none` | `acencyril` | packages you publish yourself |
 | `UPLIFT_TEST_COMMAND` | a shell command | `vendor/bin/phpunit` | what says the upgrade works; empty: no tests |
-| `UPLIFT_ADOPT`, `UPLIFT_ADOPT_SKIP` | see [New features](#new-features-not-just-deprecations) | `propose` | |
+| `UPLIFT_ADOPT`, `UPLIFT_ADOPT_SKIP`, `UPLIFT_ADOPT_OPT_IN` | see [New features](#new-features-not-just-deprecations) | `propose` | |
 
 A level is the largest move done automatically. Anything larger is **proposed** in the
 report and waits for a person. With the defaults, patches are applied and every minor
@@ -169,7 +187,7 @@ candidate is reported as `file:line` with the line itself and what to use there.
 |---|---|---|---|
 | `map-request` | `symfony/http-kernel` >= 6.3 | in controller actions, `json_decode($request->getContent())` and `$request->toArray()` (`#[MapRequestPayload]`), `$request->query->get('page')`, `->getInt('page')`… (`#[MapQueryParameter]`), `$request->query->all()` (`#[MapQueryString]`) | manual: the target class is yours to write |
 | `as-command` | `symfony/console` >= 5.3 | commands declaring `protected static $defaultName` or `$defaultDescription` (deprecated since 6.1) without `#[AsCommand]` | Rector `CommandPropertyToAttributeRector` |
-| `readonly-promotion` | PHP >= 8.1 | promoted, typed constructor properties never written again: private, or in a final class; not in Doctrine entities | Rector `ReadOnlyPropertyRector` |
+| `readonly-promotion` | PHP >= 8.1, **opt-in** | promoted, typed constructor properties never written again: private, or in a final class; not in Doctrine entities | Rector `ReadOnlyPropertyRector`, **experimental** |
 | `lock-attribute` | to be confirmed | controllers and listeners calling `createLock()` then `acquire()`/`release()` | none, **experimental** |
 
 `lock-attribute` is an example of an adoption for a feature that is **not confirmed**:
@@ -177,6 +195,15 @@ a lock attribute on controller actions (`#[Lock('invoice-{id}', blocking: true, 
 is the idea). Symfony 7.4 has no such attribute; its package, version and API are
 placeholders until a release ships it. It is flagged *experimental*, and never
 applied.
+
+`readonly-promotion` is **experimental and off by default**. The class itself never
+writes the property again, but code working through reflection can: the Serializer's
+object normalizer, the Form component writing back to an object, Doctrine hydrating a
+class that is not mapped as an entity, a "wither" that clones then sets through
+reflection. On a readonly property each of them throws *Cannot modify readonly
+property* at run time, in code the static scan does not see. Opt in with
+`UPLIFT_ADOPT_OPT_IN=readonly-promotion` when your tests cover those paths; it then
+follows `UPLIFT_ADOPT` like the others, and a failing test puts the files back.
 
 ```bash
 php bin/console uplift:adopt                      # list, with the candidate places
@@ -207,9 +234,11 @@ The adoptions are written into the same `report.json` (key `adoptions`) and
 | Variable | Values | Default | |
 |---|---|---|---|
 | `UPLIFT_ADOPT` | `off`, `propose`, `apply` | `propose` | `off`: not looked for; `propose`: listed only; `apply`: `--apply` rewrites those with a Rector rule |
-| `UPLIFT_ADOPT_SKIP` | adoption ids, comma-separated | none | adoptions you do not want, e.g. `readonly-promotion` |
+| `UPLIFT_ADOPT_SKIP` | adoption ids, comma-separated | none | adoptions you do not want, e.g. `as-command` |
+| `UPLIFT_ADOPT_OPT_IN` | adoption ids, comma-separated | none | adoptions that are off by default and that you want: `readonly-promotion` |
 
-Manual and experimental adoptions are only ever proposed.
+Manual adoptions are only ever proposed, and so are experimental ones, except an
+opt-in adoption you opted in to.
 
 ### In the monthly run
 
@@ -289,14 +318,31 @@ jobs:
             -
                 run: composer install --no-interaction
             -
+                id: apply
                 run: |
+                    branch="upgrade/$(date +%Y-%m)"
+                    echo "branch=$branch" >> "$GITHUB_OUTPUT"
                     git config user.name "uplift"
                     git config user.email "uplift@users.noreply.github.com"
-                    php bin/console uplift:apply --branch="upgrade/$(date +%Y-%m)" --commit --adopt
+                    php bin/console uplift:apply --branch="$branch" --commit --adopt
             -
-                if: always()
-                run: git push origin HEAD || true
+                # Also after failed tests (uplift:apply exits 1, the job stays red): the
+                # branch and its report are there for a person to read. A failed push
+                # fails the job.
+                if: ${{ !cancelled() }}
+                env:
+                    BRANCH: ${{ steps.apply.outputs.branch }}
+                run: |
+                    if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+                        git push origin "$BRANCH"
+                    else
+                        echo "No $BRANCH branch: nothing moved, nothing to push."
+                    fi
 ```
+
+The branch exists only when something moved. A branch of the same name already on the
+remote (a second run in the month) makes the push fail, on purpose: merge or delete it
+first.
 
 ## Older projects
 

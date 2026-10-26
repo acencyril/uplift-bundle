@@ -93,7 +93,7 @@ final class AdoptCommandTest extends TestCase
         copy(__DIR__.'/Fixtures/site/composer.json', $this->dir.'/composer.json');
         copy(__DIR__.'/Fixtures/site/composer.lock', $this->dir.'/composer.lock');
         $this->withRector();
-        $tester = $this->command('uplift:apply', ['UPLIFT_ENABLED' => '1', 'UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => 'make test']);
+        $tester = $this->command('uplift:apply', ['UPLIFT_ENABLED' => '1', 'UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => 'make test', 'UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion']);
         self::assertSame(0, $tester->execute(['--no-outdated' => true, '--adopt' => true, '--rehearsal' => $this->dir.'/.rehearsal/changes.json']));
 
         $json = json_decode((string) file_get_contents($this->dir.'/var/uplift/report.json'), true);
@@ -118,7 +118,7 @@ final class AdoptCommandTest extends TestCase
         copy(__DIR__.'/Fixtures/site/composer.json', $this->dir.'/composer.json');
         copy(__DIR__.'/Fixtures/site/composer.lock', $this->dir.'/composer.lock');
         $this->withRector();
-        $tester = $this->command('uplift:apply', ['UPLIFT_ENABLED' => '1', 'UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => 'make test'], ['make test' => 1]);
+        $tester = $this->command('uplift:apply', ['UPLIFT_ENABLED' => '1', 'UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => 'make test', 'UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion'], ['make test' => 1]);
         self::assertSame(1, $tester->execute(['--no-outdated' => true, '--adopt' => true]));
         self::assertStringContainsString('New features not looked for: the version move did not succeed.', $tester->getDisplay());
         self::assertArrayNotHasKey('adoptions', json_decode((string) file_get_contents($this->dir.'/var/uplift/report.json'), true));

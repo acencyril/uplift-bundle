@@ -30,6 +30,9 @@ final class PolicyTest extends TestCase
         self::assertSame('apply', Policy::fromEnv(['UPLIFT_ADOPT' => ' Apply '])->adopt);
         self::assertSame('propose', Policy::fromEnv(['UPLIFT_ADOPT' => ''])->adopt);
         self::assertSame(['as-command', 'map-request'], Policy::fromEnv(['UPLIFT_ADOPT_SKIP' => 'As-Command, ,map-request'])->adoptSkip);
+        self::assertSame([], Policy::fromEnv([])->adoptOptIn);
+        self::assertSame(['readonly-promotion'], Policy::fromEnv(['UPLIFT_ADOPT_OPT_IN' => ' Readonly-Promotion, '])->adoptOptIn);
+        self::assertSame(['readonly-promotion'], Policy::fromEnv(['UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion'])->toArray()['adopt_opt_in']);
         self::assertSame(['adopt' => 'apply', 'adopt_skip' => ['x']], array_intersect_key(Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_ADOPT_SKIP' => 'x'])->toArray(), ['adopt' => 1, 'adopt_skip' => 1]));
     }
 

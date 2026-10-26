@@ -19,7 +19,9 @@
         "UPLIFT_TEST_COMMAND": "vendor/bin/phpunit",
         "#3": "New features of the installed versions (uplift:adopt): off, propose or apply. UPLIFT_ADOPT_SKIP: adoption ids to leave out.",
         "UPLIFT_ADOPT": "propose",
-        "UPLIFT_ADOPT_SKIP": ""
+        "UPLIFT_ADOPT_SKIP": "",
+        "#4": "UPLIFT_ADOPT_OPT_IN: adoptions off by default to look for, e.g. readonly-promotion (experimental: can break reflection-based hydration).",
+        "UPLIFT_ADOPT_OPT_IN": ""
     },
     "post-install-output": [
         "  * <fg=blue>Uplift</>: see what can move with <comment>php bin/console uplift:plan</>,",

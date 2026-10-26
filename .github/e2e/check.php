@@ -183,7 +183,7 @@ switch ($stage) {
         }
         if ('adopt-apply' === $stage) {
             foreach ($a['findings'] ?? [] as $f) {
-                if ('manual' !== $f['rewrite'] && !$f['experimental'] && [] !== $f['candidates']) {
+                if ('apply' === $f['decision']) {
                     $status = $outcomes[$f['id']]['status'] ?? 'none';
                     check('applied' === $status, 'uplift:adopt --apply '.$f['id'], sprintf('outcome %s with %s: %s', $status, $f['rewrite'], json_encode($outcomes[$f['id']] ?? null, JSON_UNESCAPED_SLASHES)));
                 }

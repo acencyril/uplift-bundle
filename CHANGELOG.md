@@ -6,6 +6,28 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-10-26
+
+### Changed
+- **`readonly-promotion` is experimental and off by default** (behaviour change): making a
+  promoted property readonly is correct for the class itself, but code that writes
+  properties through reflection (the Serializer's object normalizer, Form, Doctrine
+  hydrating a non-entity class) then fails at run time, where the scan cannot see it. It
+  is reported as skipped until listed in the new `UPLIFT_ADOPT_OPT_IN`
+  (`UPLIFT_ADOPT_OPT_IN=readonly-promotion`); opted in, it follows `UPLIFT_ADOPT` as
+  before. Adoptions can declare themselves opt-in with the `OptIn` marker interface. The
+  Flex recipe in this repository lists the new variable.
+- e2e: opts in to `readonly-promotion`, and checks that every adoption decided `apply` was
+  applied.
+
+### Fixed
+- README, CI example: the push no longer ends with `|| true`, so a failed push fails the
+  job. It pushes the upgrade branch by name, only when it exists, and also runs after
+  failed tests (`!cancelled()` instead of `always()`).
+
+### Added
+- README: the figures of a real run (the e2e workflow) near the top.
+
 ## [0.3.0] — 2026-10-26
 
 ### Added

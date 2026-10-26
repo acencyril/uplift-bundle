@@ -16,6 +16,24 @@ composer require acencyril/uplift-bundle
 php bin/console uplift:plan
 ```
 
+### Un vrai passage
+
+Tiré du [workflow de bout en bout](.github/workflows/e2e.yml) : une application
+Symfony 7.3 neuve, `UPLIFT_SYMFONY=minor`, puis `uplift:apply` et `uplift:adopt --apply`,
+avec le vrai Packagist et les tests de l'application.
+
+| | |
+|---|---|
+| Symfony | 7.3.11 → 7.4.21 |
+| Paquets mis à jour | 40 |
+| Contraintes réécrites dans `composer.json` | 11 (`7.3.*` → `7.4.*`) |
+| Dépréciations corrigées par Rector | 1 (l'ancien `Routing\Annotation\Route`, `RenameAttributeRector`) |
+| Nouveautés adoptées | 2 (`as-command`, `readonly-promotion` sur demande), tests passés après chacune |
+| Tests | passés |
+
+DoctrineBundle 3, DoctrineMigrationsBundle 4 et PHPUnit 12 ont été retenus, et le
+rapport a dit pourquoi (il leur faut un PHP plus récent que le 8.2 du projet).
+
 ---
 
 ## La politique
@@ -32,7 +50,7 @@ changer le code :
 | `UPLIFT_PHP_MAX` | une branche, ex. `8.1` | aucun | un plafond strict pour PHP (voir plus bas) |
 | `UPLIFT_OWN_VENDOR` | des vendors séparés par des virgules, ou `none` | `acencyril` | les paquets que vous publiez vous-même |
 | `UPLIFT_TEST_COMMAND` | une commande shell | `vendor/bin/phpunit` | ce qui dit que la mise à jour marche ; vide : pas de tests |
-| `UPLIFT_ADOPT`, `UPLIFT_ADOPT_SKIP` | voir [Les nouveautés](#les-nouveautés-pas-seulement-les-dépréciations) | `propose` | |
+| `UPLIFT_ADOPT`, `UPLIFT_ADOPT_SKIP`, `UPLIFT_ADOPT_OPT_IN` | voir [Les nouveautés](#les-nouveautés-pas-seulement-les-dépréciations) | `propose` | |
 
 Un niveau est la plus grande montée faite automatiquement. Au-delà, la montée est
 **proposée** dans le rapport et attend une personne. Avec les défauts, les patchs sont
@@ -175,7 +193,7 @@ qu'on peut y mettre.
 |---|---|---|---|
 | `map-request` | `symfony/http-kernel` >= 6.3 | dans les actions de contrôleur, `json_decode($request->getContent())` et `$request->toArray()` (`#[MapRequestPayload]`), `$request->query->get('page')`, `->getInt('page')`… (`#[MapQueryParameter]`), `$request->query->all()` (`#[MapQueryString]`) | manuelle : la classe cible est à écrire |
 | `as-command` | `symfony/console` >= 5.3 | les commandes qui déclarent `protected static $defaultName` ou `$defaultDescription` (dépréciés depuis 6.1) sans `#[AsCommand]` | Rector `CommandPropertyToAttributeRector` |
-| `readonly-promotion` | PHP >= 8.1 | les propriétés promues et typées du constructeur jamais réécrites : privées, ou dans une classe finale ; pas dans les entités Doctrine | Rector `ReadOnlyPropertyRector` |
+| `readonly-promotion` | PHP >= 8.1, **sur demande** | les propriétés promues et typées du constructeur jamais réécrites : privées, ou dans une classe finale ; pas dans les entités Doctrine | Rector `ReadOnlyPropertyRector`, **expérimentale** |
 | `lock-attribute` | à confirmer | les contrôleurs et listeners qui appellent `createLock()` puis `acquire()`/`release()` | aucune, **expérimentale** |
 
 `lock-attribute` est un exemple d'adoption pour une fonctionnalité **non confirmée** :
@@ -183,6 +201,16 @@ un attribut de verrou sur les actions de contrôleur (l'idée :
 `#[Lock('invoice-{id}', blocking: true, ttl: 10)]`). Symfony 7.4 n'a pas d'attribut de
 ce genre ; son paquet, sa version et son API sont provisoires jusqu'à ce qu'une version
 le publie. Elle est marquée *expérimentale* et jamais appliquée.
+
+`readonly-promotion` est **expérimentale et désactivée par défaut**. La classe
+elle-même ne réécrit jamais la propriété, mais du code qui passe par la réflexion le
+peut : le normaliseur d'objets du Serializer, le composant Form qui réécrit un objet,
+Doctrine qui hydrate une classe non mappée comme entité, un « wither » qui clone puis
+modifie par réflexion. Sur une propriété readonly, chacun lève *Cannot modify readonly
+property* à l'exécution, dans du code que l'analyse statique ne voit pas. Activez-la
+avec `UPLIFT_ADOPT_OPT_IN=readonly-promotion` quand vos tests couvrent ces chemins ;
+elle suit alors `UPLIFT_ADOPT` comme les autres, et un test qui échoue remet les
+fichiers en place.
 
 ```bash
 php bin/console uplift:adopt                      # la liste, avec les endroits candidats
@@ -213,9 +241,11 @@ Les adoptions sont écrites dans les mêmes `report.json` (clé `adoptions`) et
 | Variable | Valeurs | Défaut | |
 |---|---|---|---|
 | `UPLIFT_ADOPT` | `off`, `propose`, `apply` | `propose` | `off` : pas cherchées ; `propose` : listées seulement ; `apply` : `--apply` réécrit celles qui ont une règle Rector |
-| `UPLIFT_ADOPT_SKIP` | des ids d'adoption, séparés par des virgules | aucun | les adoptions dont vous ne voulez pas, ex. `readonly-promotion` |
+| `UPLIFT_ADOPT_SKIP` | des ids d'adoption, séparés par des virgules | aucun | les adoptions dont vous ne voulez pas, ex. `as-command` |
+| `UPLIFT_ADOPT_OPT_IN` | des ids d'adoption, séparés par des virgules | aucun | les adoptions désactivées par défaut que vous voulez : `readonly-promotion` |
 
-Les adoptions manuelles et expérimentales sont seulement proposées.
+Les adoptions manuelles sont seulement proposées, les expérimentales aussi, sauf une
+adoption sur demande que vous avez activée.
 
 ### Dans le passage mensuel
 
@@ -297,14 +327,31 @@ jobs:
             -
                 run: composer install --no-interaction
             -
+                id: apply
                 run: |
+                    branch="upgrade/$(date +%Y-%m)"
+                    echo "branch=$branch" >> "$GITHUB_OUTPUT"
                     git config user.name "uplift"
                     git config user.email "uplift@users.noreply.github.com"
-                    php bin/console uplift:apply --branch="upgrade/$(date +%Y-%m)" --commit --adopt
+                    php bin/console uplift:apply --branch="$branch" --commit --adopt
             -
-                if: always()
-                run: git push origin HEAD || true
+                # Aussi après des tests en échec (uplift:apply sort en 1, le job reste
+                # rouge) : la branche et son rapport sont là pour être lus. Un push qui
+                # échoue fait échouer le job.
+                if: ${{ !cancelled() }}
+                env:
+                    BRANCH: ${{ steps.apply.outputs.branch }}
+                run: |
+                    if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+                        git push origin "$BRANCH"
+                    else
+                        echo "No $BRANCH branch: nothing moved, nothing to push."
+                    fi
 ```
+
+La branche n'existe que si quelque chose a bougé. Une branche du même nom déjà sur le
+dépôt (un deuxième passage dans le mois) fait échouer le push, exprès : fusionnez-la
+ou supprimez-la d'abord.
 
 ## Les projets anciens
 

@@ -90,9 +90,10 @@ apply)
     check after
     ;;
 adopt)
-    run adopt php bin/console uplift:adopt
+    # readonly-promotion is off by default (experimental): the e2e app opts in to try it
+    run adopt env UPLIFT_ADOPT_OPT_IN=readonly-promotion php bin/console uplift:adopt
     check adopt
-    run adopt-apply env UPLIFT_ADOPT=apply php bin/console uplift:adopt --apply --rehearsal=.rehearsal/changes.json
+    run adopt-apply env UPLIFT_ADOPT=apply UPLIFT_ADOPT_OPT_IN=readonly-promotion php bin/console uplift:adopt --apply --rehearsal=.rehearsal/changes.json
     (cd "$APP" && git diff -- src) >"$LOGS/adopt-diff.log" 2>&1
     check adopt-apply
     ;;

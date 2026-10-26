@@ -12,7 +12,7 @@ namespace Acencyril\UpliftBundle\Adopt;
  *           "manual"   candidates found, no automatic rewrite: a person makes the change
  *           "none"     the site can use the feature, nothing found to rewrite
  *           "later"    the site does not run the version yet (reason says which)
- *           "skipped"  listed in UPLIFT_ADOPT_SKIP
+ *           "skipped"  listed in UPLIFT_ADOPT_SKIP, or an opt-in adoption not in UPLIFT_ADOPT_OPT_IN
  */
 final class Finding
 {

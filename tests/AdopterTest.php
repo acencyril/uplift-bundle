@@ -75,7 +75,7 @@ final class AdopterTest extends TestCase
     /** @param array<string, string> $env */
     private function find(array $env, ?FakeRunner $runner = null, string $locale = 'en'): AdoptionPlan
     {
-        return $this->adopter($runner ?? new FakeRunner())->find(new ComposerProject($this->dir), Policy::fromEnv($env), ['src'], $locale, '8.3.12');
+        return $this->adopter($runner ?? new FakeRunner())->find(new ComposerProject($this->dir), Policy::fromEnv($env + ['UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion']), ['src'], $locale, '8.3.12');
     }
 
     /** @return array<string, string> id => decision */
@@ -170,8 +170,29 @@ final class AdopterTest extends TestCase
 
     public function testNothingFoundIsNone(): void
     {
-        $plan = $this->adopter(new FakeRunner())->find(new ComposerProject($this->dir), Policy::fromEnv([]), ['src/Entity'], 'en', '8.3.12');
+        $plan = $this->adopter(new FakeRunner())->find(new ComposerProject($this->dir), Policy::fromEnv(['UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion']), ['src/Entity'], 'en', '8.3.12');
         self::assertSame('none', self::decisions($plan)['readonly-promotion']);
+    }
+
+    public function testReadonlyPromotionIsOffByDefault(): void
+    {
+        $runner = new FakeRunner();
+        $adopter = $this->adopter($runner);
+        $project = new ComposerProject($this->dir);
+        $plan = $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply']), ['src'], 'en', '8.3.12');
+        $readonly = array_values(array_filter($plan->findings, static fn ($f) => 'readonly-promotion' === $f->id()))[0];
+        self::assertSame('skipped', $readonly->decision);
+        self::assertSame('off by default: opt in with UPLIFT_ADOPT_OPT_IN=readonly-promotion', $readonly->reason);
+        self::assertSame([], $readonly->candidates, 'not even scanned');
+        self::assertTrue($readonly->toArray()['experimental']);
+        self::assertSame('apply', self::decisions($plan)['as-command'], 'the others are not affected');
+    }
+
+    public function testOptedInReadonlyPromotionFollowsThePolicyDespiteBeingExperimental(): void
+    {
+        $plan = $this->find(['UPLIFT_ADOPT' => 'apply']);
+        self::assertSame('apply', self::decisions($plan)['readonly-promotion']);
+        self::assertSame('propose', self::decisions($this->find([]))['readonly-promotion']);
     }
 
     public function testFrenchTexts(): void
@@ -186,7 +207,7 @@ final class AdopterTest extends TestCase
         $runner = new FakeRunner([], ['vendor/bin/rector' => self::rector($this->configs)]);
         $adopter = $this->adopter($runner);
         $project = new ComposerProject($this->dir);
-        $plan = $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => 'make test']), ['src'], 'en', '8.3.12');
+        $plan = $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => 'make test', 'UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion']), ['src'], 'en', '8.3.12');
         $result = $adopter->apply($project, $plan);
 
         self::assertSame('done', $result->status);
@@ -213,7 +234,7 @@ final class AdopterTest extends TestCase
         $runner = new FakeRunner(['make test' => [0, 1]], ['vendor/bin/rector' => self::rector()]);
         $adopter = $this->adopter($runner);
         $project = new ComposerProject($this->dir);
-        $plan = $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => 'make test']), ['src'], 'en', '8.3.12');
+        $plan = $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => 'make test', 'UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion']), ['src'], 'en', '8.3.12');
         $result = $adopter->apply($project, $plan, ['commit' => true]);
 
         self::assertSame('applied', $result->outcomes['as-command']['status']);
@@ -234,7 +255,7 @@ final class AdopterTest extends TestCase
         $runner = new FakeRunner(['vendor/bin/rector' => new RunResult(1, 'Class "Rector\Php81\Rector\Property\ReadOnlyPropertyRector" not found')], ['vendor/bin/rector' => self::rector()]);
         $adopter = $this->adopter($runner);
         $project = new ComposerProject($this->dir);
-        $result = $adopter->apply($project, $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_ADOPT_SKIP' => 'as-command']), ['src'], 'en', '8.3.12'));
+        $result = $adopter->apply($project, $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_ADOPT_SKIP' => 'as-command', 'UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion']), ['src'], 'en', '8.3.12'));
 
         self::assertSame('rector_failed', $result->outcomes['readonly-promotion']['status']);
         self::assertFileEquals(__DIR__.'/Fixtures/adopt/'.self::FEED, $this->dir.'/'.self::FEED);
@@ -248,7 +269,7 @@ final class AdopterTest extends TestCase
         $adopter = $this->adopter($runner);
         $project = new ComposerProject($this->dir);
         file_put_contents($this->dir.'/'.self::LEGACY, str_replace('class LegacyCommand', 'class  LegacyCommand', (string) file_get_contents($this->dir.'/'.self::LEGACY)));
-        $result = $adopter->apply($project, $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => '']), ['src'], 'en', '8.3.12'));
+        $result = $adopter->apply($project, $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_TEST_COMMAND' => '', 'UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion']), ['src'], 'en', '8.3.12'));
 
         self::assertSame('unchanged', $result->outcomes['as-command']['status'], 'the fake Rector does not recognise it any more');
         self::assertSame('untested', $result->outcomes['readonly-promotion']['status']);
@@ -261,11 +282,11 @@ final class AdopterTest extends TestCase
         $adopter = $this->adopter($runner);
         $project = new ComposerProject($this->dir);
 
-        $result = $adopter->apply($project, $adopter->find($project, Policy::fromEnv([]), ['src'], 'en', '8.3.12'));
+        $result = $adopter->apply($project, $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion']), ['src'], 'en', '8.3.12'));
         self::assertSame('proposed', $result->status);
         self::assertSame(['UPLIFT_ADOPT=propose: nothing rewritten.'], $result->notes);
 
-        $result = $adopter->apply($project, $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply']), ['src'], 'en', '8.3.12'));
+        $result = $adopter->apply($project, $adopter->find($project, Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_ADOPT_OPT_IN' => 'readonly-promotion']), ['src'], 'en', '8.3.12'));
         self::assertSame('proposed', $result->status);
         self::assertStringStartsWith('Rector is not installed', $result->notes[0]);
         self::assertSame([], $runner->commands);

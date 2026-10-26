@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Acencyril\UpliftBundle\Report;
 
+use Acencyril\UpliftBundle\Adopt\Adoption;
 use Acencyril\UpliftBundle\Adopt\AdoptionPlan;
 use Acencyril\UpliftBundle\Adopt\AdoptionResult;
 use Acencyril\UpliftBundle\Adopt\Candidate;
 use Acencyril\UpliftBundle\Adopt\Finding;
+use Acencyril\UpliftBundle\Adopt\OptIn;
 use Acencyril\UpliftBundle\Apply\ApplyResult;
 use Acencyril\UpliftBundle\Plan\Move;
 use Acencyril\UpliftBundle\Plan\Plan;
@@ -19,7 +21,7 @@ use Acencyril\UpliftBundle\Plan\Plan;
  */
 final class ReportWriter
 {
-    public const VERSION = '0.3.0';
+    public const VERSION = '0.3.1';
 
     /**
      * Command output is not always valid UTF-8 (a test printing binary, a tail cut inside a
@@ -256,15 +258,24 @@ final class ReportWriter
         return ['json' => $json, 'markdown' => $md];
     }
 
+    private static function experimentalNote(Adoption $a): string
+    {
+        return match (true) {
+            !$a->experimental() => '',
+            $a instanceof OptIn => ' · **experimental, opted in: can break reflection-based code, the tests decide**',
+            default => ' · **experimental: not confirmed upstream, never applied**',
+        };
+    }
+
     public static function adoptionsMarkdown(AdoptionPlan $plan, ?AdoptionResult $result): string
     {
         $md = "<!-- uplift:adoptions -->\n## New features\n\n";
-        $md .= sprintf("UPLIFT_ADOPT=%s · skipped: %s · %d file(s) scanned\n\n", $plan->policy->adopt, [] === $plan->policy->adoptSkip ? 'none' : implode(', ', $plan->policy->adoptSkip), $plan->files);
+        $md .= sprintf("UPLIFT_ADOPT=%s · skipped: %s · opted in: %s · %d file(s) scanned\n\n", $plan->policy->adopt, [] === $plan->policy->adoptSkip ? 'none' : implode(', ', $plan->policy->adoptSkip), [] === $plan->policy->adoptOptIn ? 'none' : implode(', ', $plan->policy->adoptOptIn), $plan->files);
         foreach ($plan->withDecision(...Finding::WITH_CANDIDATES) as $f) {
             $a = $f->adoption;
             $md .= sprintf("### %s: %s\n\n", $f->title, $f->decision);
             $md .= sprintf("`%s` · %s (installed %s) · rewrite: %s · [docs](%s)%s\n\n", $f->id(), $f->requirement(), $f->installed ?? '?',
-                null !== $a->rector() ? 'Rector `'.$a->rector().'`' : 'manual', $a->docs(), $a->experimental() ? ' · **experimental: not confirmed upstream, never applied**' : '');
+                null !== $a->rector() ? 'Rector `'.$a->rector().'`' : 'manual', $a->docs(), self::experimentalNote($a));
             $md .= $f->summary."\n\n".$f->reason.".\n\n| Where | Code | Use |\n|---|---|---|\n";
             foreach ($f->candidates as $c) {
                 $md .= sprintf("| `%s` | `%s` | %s |\n", self::cell($c->where()), self::cell(str_replace('`', "'", $c->snippet)), self::cell($c->hint));
@@ -327,7 +338,7 @@ final class ReportWriter
                 'reverted' => 'Rewritten by Rector, the tests failed: put back, to do by hand.',
                 'rector_failed' => 'Rector failed: nothing changed, to do by hand.',
                 'unchanged' => 'Rector changed nothing: to do by hand.',
-                default => $a->experimental() ? 'Experimental: the feature is not confirmed upstream yet. Not applied.' : 'Proposed, not applied ('.$f->reason.').',
+                default => $a->experimental() && !$a instanceof OptIn ? 'Experimental: the feature is not confirmed upstream yet. Not applied.' : 'Proposed, not applied ('.$f->reason.').',
             }."\n\nPlaces (".\count($f->candidates).'):'.$places."\n\nNeeds ".$f->requirement().', installed '.($f->installed ?? '?').'. Docs: '.$a->docs();
             $change = [
                 'id' => $id,

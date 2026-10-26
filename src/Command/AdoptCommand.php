@@ -48,7 +48,8 @@ final class AdoptCommand extends Command
                   <info>propose</info>  a person decides (UPLIFT_ADOPT=propose, or an experimental adoption)
                   <info>manual</info>   no automatic rewrite: a person makes the change
 
-                UPLIFT_ADOPT=off|propose|apply (default propose), UPLIFT_ADOPT_SKIP=id1,id2.
+                UPLIFT_ADOPT=off|propose|apply (default propose), UPLIFT_ADOPT_SKIP=id1,id2,
+                UPLIFT_ADOPT_OPT_IN=readonly-promotion for the adoptions that are off by default.
                 HELP);
     }
 

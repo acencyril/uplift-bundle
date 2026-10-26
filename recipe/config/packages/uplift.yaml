@@ -1,6 +1,6 @@
 # Uplift: dependency upgrades with guardrails. What may move is in the environment
 # (.env): UPLIFT_ENABLED, UPLIFT_PHP, UPLIFT_SYMFONY, UPLIFT_PACKAGES, UPLIFT_PHP_MAX,
-# UPLIFT_OWN_VENDOR, UPLIFT_TEST_COMMAND, UPLIFT_ADOPT, UPLIFT_ADOPT_SKIP.
+# UPLIFT_OWN_VENDOR, UPLIFT_TEST_COMMAND, UPLIFT_ADOPT, UPLIFT_ADOPT_SKIP, UPLIFT_ADOPT_OPT_IN.
 # Reference: vendor/acencyril/uplift-bundle/README.md
 uplift:
     report_dir: '%kernel.project_dir%/var/uplift'   # report.json and report.md

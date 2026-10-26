@@ -6,6 +6,7 @@ namespace Acencyril\UpliftBundle\Adopt\Catalog;
 
 use Acencyril\UpliftBundle\Adopt\Adoption;
 use Acencyril\UpliftBundle\Adopt\Ast;
+use Acencyril\UpliftBundle\Adopt\OptIn;
 use Acencyril\UpliftBundle\Adopt\SourceFile;
 use PhpParser\Modifiers;
 use PhpParser\Node;
@@ -22,8 +23,15 @@ use PhpParser\NodeFinder;
  * never written anywhere in the class: no assignment, compound assignment, ++/--,
  * unset, reference, by-reference foreach or by-reference built-in on any ->name of
  * that name.
+ *
+ * Experimental and off by default (opt in with UPLIFT_ADOPT_OPT_IN=readonly-promotion):
+ * the class itself never writes the property again, but code working through reflection
+ * can. The Serializer's object normalizer, the Form component's property path mapping,
+ * Doctrine's hydration of a non-entity class, a clone-and-set "wither" built with
+ * reflection: on a readonly property each throws "Cannot modify readonly property" at
+ * run time, in code the scan does not see. Only the tests can tell, so the site decides.
  */
-final class ReadonlyPromotion implements Adoption
+final class ReadonlyPromotion implements Adoption, OptIn
 {
     /** built-ins that write their argument (by reference) */
     private const BY_REF = ['preg_match', 'preg_match_all', 'sort', 'rsort', 'usort', 'uasort', 'uksort', 'ksort', 'krsort', 'asort', 'arsort', 'natsort', 'natcasesort', 'shuffle',
@@ -56,7 +64,7 @@ final class ReadonlyPromotion implements Adoption
 
     public function experimental(): bool
     {
-        return false;
+        return true;
     }
 
     public function detect(SourceFile $file): array

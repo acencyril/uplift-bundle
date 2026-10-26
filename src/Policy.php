@@ -16,6 +16,8 @@ namespace Acencyril\UpliftBundle;
  *   UPLIFT_TEST_COMMAND  the command that says the upgrade works (default vendor/bin/phpunit)
  *   UPLIFT_ADOPT         off|propose|apply, for the new features of the installed versions (default propose)
  *   UPLIFT_ADOPT_SKIP    adoption ids never to propose, comma-separated (default: none)
+ *   UPLIFT_ADOPT_OPT_IN  opt-in adoption ids to look for, comma-separated (default: none),
+ *                        e.g. readonly-promotion (experimental, off by default)
  *
  * A move above its level is proposed in the report, never applied.
  *
@@ -29,11 +31,12 @@ final class Policy
 {
     public const OWN_VENDOR_FLOOR = Level::Minor;
     public const ADOPT = ['off', 'propose', 'apply'];
-    public const VARIABLES = ['UPLIFT_ENABLED', 'UPLIFT_PHP', 'UPLIFT_SYMFONY', 'UPLIFT_PACKAGES', 'UPLIFT_PHP_MAX', 'UPLIFT_OWN_VENDOR', 'UPLIFT_TEST_COMMAND', 'UPLIFT_ADOPT', 'UPLIFT_ADOPT_SKIP'];
+    public const VARIABLES = ['UPLIFT_ENABLED', 'UPLIFT_PHP', 'UPLIFT_SYMFONY', 'UPLIFT_PACKAGES', 'UPLIFT_PHP_MAX', 'UPLIFT_OWN_VENDOR', 'UPLIFT_TEST_COMMAND', 'UPLIFT_ADOPT', 'UPLIFT_ADOPT_SKIP', 'UPLIFT_ADOPT_OPT_IN'];
 
     /**
      * @param list<string> $ownVendors
      * @param list<string> $adoptSkip
+     * @param list<string> $adoptOptIn
      */
     public function __construct(
         public readonly bool $enabled = false,
@@ -45,6 +48,7 @@ final class Policy
         public readonly string $testCommand = 'vendor/bin/phpunit',
         public readonly string $adopt = 'propose',
         public readonly array $adoptSkip = [],
+        public readonly array $adoptOptIn = [],
     ) {
         if (!\in_array($adopt, self::ADOPT, true)) {
             throw new \InvalidArgumentException(sprintf('UPLIFT_ADOPT must be off, propose or apply, "%s" given.', $adopt));
@@ -68,6 +72,7 @@ final class Policy
         $test = $get('UPLIFT_TEST_COMMAND');
         $adopt = strtolower((string) $get('UPLIFT_ADOPT'));
         $skip = array_values(array_filter(array_map('trim', explode(',', strtolower((string) $get('UPLIFT_ADOPT_SKIP'))))));
+        $optIn = array_values(array_filter(array_map('trim', explode(',', strtolower((string) $get('UPLIFT_ADOPT_OPT_IN'))))));
 
         return new self(
             \in_array($enabled, ['1', 'true'], true),
@@ -79,6 +84,7 @@ final class Policy
             null === $test ? 'vendor/bin/phpunit' : $test,
             '' === $adopt ? 'propose' : $adopt,
             $skip,
+            $optIn,
         );
     }
 
@@ -125,6 +131,7 @@ final class Policy
             'test_command' => $this->testCommand,
             'adopt' => $this->adopt,
             'adopt_skip' => $this->adoptSkip,
+            'adopt_opt_in' => $this->adoptOptIn,
         ];
     }
 }
