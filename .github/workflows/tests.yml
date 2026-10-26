@@ -22,4 +22,8 @@ jobs:
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with: { php-version: '${{ matrix.php }}', coverage: none, tools: 'composer, flex' }
       - run: composer update --no-interaction --no-progress --prefer-dist
-      - run: vendor/bin/phpunit
+      - run: vendor/bin/phpunit --log-junit junit.xml
+      - name: Report failures as annotations
+        if: failure()
+        run: |
+          php -r '$x = simplexml_load_file("junit.xml"); foreach ($x->xpath("//testcase[failure or error]") as $t) { $m = (string) ($t->failure ?: $t->error); echo "::error title=".$t["class"]."::".$t["name"].": ".str_replace(["\r","\n"], " ", substr($m, 0, 600)).PHP_EOL; }'
