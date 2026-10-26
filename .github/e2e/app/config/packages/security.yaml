@@ -16,4 +16,4 @@ security:
             http_basic:
                 realm: e2e
     access_control:
-        - { path: ^/[a-z]{2}/admin, roles: ROLE_ADMIN }
+        - { path: '^/[a-z]{2}/admin', roles: ROLE_ADMIN }
