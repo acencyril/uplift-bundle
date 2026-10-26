@@ -101,7 +101,13 @@ final class ApplierTest extends TestCase
             '"require": "7.4.*" => "require": "8.0.*"',
         ], $this->diff('site'));
         self::assertStringContainsString('--with symfony/flex:2.9.0', $runner->commands[0]);
-        self::assertNotEmpty(array_filter($result->notes, static fn (string $n) => str_contains($n, 'targets PHP 8.4')));
+        // The note only appears when the steps ran on another PHP than the one now targeted.
+        $note = array_filter($result->notes, static fn (string $n) => str_contains($n, 'targets PHP 8.4'));
+        if (\PHP_MAJOR_VERSION.'.'.\PHP_MINOR_VERSION === '8.4') {
+            self::assertEmpty($note);
+        } else {
+            self::assertNotEmpty($note);
+        }
     }
 
     public function testWhenComposerRefusesTheRewritesTheSimpleMovesAreTriedAlone(): void
