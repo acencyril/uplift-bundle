@@ -53,7 +53,11 @@ final class ReportTest extends TestCase
         self::assertStringContainsString('## Applied', $md);
         self::assertStringContainsString('| symfony/* (2 packages) | 6.4.10 | 6.4.26 | patch | 6.4.* |  |', $md);
         self::assertStringContainsString('## Blocked', $md);
-        self::assertStringContainsString('requires PHP >=8.4, above UPLIFT_PHP_MAX=8.1', $md);
+        self::assertStringContainsString('requires PHP >=8.2, above UPLIFT_PHP_MAX=8.1', $md);
+        self::assertStringContainsString("## The way ahead\n", $md);
+        self::assertStringContainsString('- symfony/*: 6.4.10 -> 6.4.26 now; then 7.4.8, 8.0.5 in later runs', $md);
+        self::assertSame('6.4.10 -> 6.4.26 now; then 7.4.8, 8.0.5 in later runs', $json['paths']['symfony/*']);
+        self::assertSame(['7.4.8', '8.0.5'], $json['moves'][2]['later']);
         self::assertStringContainsString('PHP 8.1 is no longer supported by php.net', $md);
 
         $file = $this->dir.'/.rehearsal/changes.json';
@@ -69,7 +73,8 @@ final class ReportTest extends TestCase
         self::assertSame('uplift', $change['source']);
         self::assertSame('passed', $change['tests']['status']);
         self::assertStringContainsString("Moved:\n- php 8.1.0 -> 8.1.33 (patch)\n- symfony/* 6.4.10 -> 6.4.26 (patch)", $change['detail']);
-        self::assertStringContainsString("\n\nBlocked:\n- php 8.1.0 -> 8.4.14 (minor): above UPLIFT_PHP_MAX=8.1", $change['detail']);
+        self::assertStringContainsString("\n\nBlocked:\n- php 8.1.0 -> 8.2.29 (minor): above UPLIFT_PHP_MAX=8.1", $change['detail']);
+        self::assertStringContainsString("\n\nThe way ahead:\n- symfony/*: 6.4.10 -> 6.4.26 now; then 7.4.8, 8.0.5 in later runs", $change['detail']);
     }
 
     public function testOutputThatIsNotUtf8StillMakesAReport(): void

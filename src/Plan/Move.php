@@ -18,7 +18,10 @@ final class Move
 {
     public const CATEGORIES = ['php', 'symfony', 'own', 'other'];
 
-    /** @param list<string> $members the packages moved together ("symfony/*") */
+    /**
+     * @param list<string> $members the packages moved together ("symfony/*")
+     * @param list<string> $later   the next steps, one per later run (7.4 now; then 8.1)
+     */
     public function __construct(
         public readonly string $package,
         public readonly string $category,
@@ -31,6 +34,7 @@ final class Move
         public readonly ?string $constraintTo = null,
         public readonly array $members = [],
         public readonly ?string $requiresPhp = null,
+        public readonly array $later = [],
     ) {
     }
 
@@ -55,6 +59,7 @@ final class Move
             'constraint_to' => $this->rewrites() ? $this->constraintTo : null,
             'members' => $this->members,
             'requires_php' => $this->requiresPhp,
+            'later' => $this->later,
         ];
     }
 }

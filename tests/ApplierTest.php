@@ -87,8 +87,7 @@ final class ApplierTest extends TestCase
         self::assertSame('passed', $result->status);
         self::assertSame([
             '"php": ">=8.3", => "php": ">=8.4",',
-            '"acencyril/sentinelle-bundle": "^0.3", => "acencyril/sentinelle-bundle": "^1.0",',
-            '"doctrine/orm": "^3.3", => "doctrine/orm": "^4.0",',
+            '"acencyril/sentinelle-bundle": "^0.3", => "acencyril/sentinelle-bundle": "^0.4",',
             '"symfony/console": "7.4.*", => "symfony/console": "8.0.*",',
             '"symfony/framework-bundle": "7.4.*", => "symfony/framework-bundle": "8.0.*",',
             '"symfony/yaml": "7.4.*", => "symfony/yaml": "8.0.*",',

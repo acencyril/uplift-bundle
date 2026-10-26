@@ -62,6 +62,30 @@ project is built for, after the PHP move of the same run. A release that needs a
 PHP than that (but under the ceiling) is blocked with
 `requires PHP >=8.4, the project is on 8.3.27 (the proposed PHP move to 8.4 would allow it)`.
 
+### One step at a time
+
+Uplift moves the way upgrade guides do: one step per run, for PHP, for Symfony and for
+each package. The next step comes on the next run (next night, next month), and only
+once this one has passed its tests, and has been validated when
+[Rehearsal](https://github.com/acencyril/rehearsal-bundle) is in manual mode.
+
+- **Majors, one per run.** Before a major move, a package goes to the latest minor of
+  its current major: that is where every deprecation of the next major shows. Only
+  from there does it move to the latest release of the **next** major, never further.
+  For Symfony, that is its LTS: a project on 6.2 goes to 6.4 first, then 7.x, then 8.x
+  (`7.4` -> `8.1` is fine: 8.1 is a minor of the next major).
+- **Below 1.0**, each minor is a line of its own: `0.3` -> `0.4` -> `0.5`.
+- **PHP, one branch per run:** `8.1` -> `8.2` -> `8.3`, never `8.1` -> `8.4`. The
+  ceiling (`UPLIFT_PHP_MAX`) still applies.
+
+The policy still says how large this run's step may be; a step it does not allow is
+proposed. The plan and the report show the whole way ahead, so you see how far behind
+the project is:
+
+```
+symfony/*: 7.3.5 -> 7.4.8 now; then 8.1.2 in later runs
+```
+
 ## The commands
 
 ### `uplift:plan`
@@ -75,8 +99,10 @@ php.net, then lists every move with its decision:
 | `propose` | works, but goes past the policy: a person decides |
 | `blocked` | cannot be done here; the reason says why |
 
-For each of PHP, Symfony and every direct dependency there are at most three lines:
-the largest allowed move, a larger one to propose, a still larger one that is blocked.
+For each of PHP, Symfony and every direct dependency there are at most three lines,
+all within this run's step (see [One step at a time](#one-step-at-a-time)): the largest
+allowed move, a larger one to propose, a still larger one that is blocked. Then the
+way ahead: the steps left for later runs.
 
 ```bash
 php bin/console uplift:plan                     # a table
@@ -271,6 +297,22 @@ jobs:
                 if: always()
                 run: git push origin HEAD || true
 ```
+
+## Older projects
+
+Uplift needs PHP 8.1 or later and Symfony 6.4 or later: Composer refuses to install it
+on PHP 5 or 7, or next to Symfony 4 or 5. That is on purpose. Catching up several
+majors is a project for a person: each major removes what the previous one deprecated,
+and the code changes it takes are covered only partly by Rector.
+
+The manual path, one major at a time, each with its own tests:
+
+1. Symfony 4.4 -> 5.4: fix the deprecations 4.4 reports, raise PHP to what 5.4 needs
+   (7.2.5 or later; 8.1 makes the next step easier), move to 5.4, fix its deprecations;
+2. Symfony 5.4 -> 6.4, with PHP 8.1 or later;
+3. then `composer require acencyril/uplift-bundle`.
+
+From then on Uplift keeps the project moving, one step per run.
 
 ## What it does not do
 

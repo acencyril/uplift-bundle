@@ -89,6 +89,13 @@ final class ReportWriter
         if ([] === $plan->moves) {
             $md .= "Everything is up to date.\n\n";
         }
+        if ([] !== ($paths = $plan->paths())) {
+            $md .= "## The way ahead\n\nOne step per run; the next one comes once this one has passed its tests (and been validated).\n\n";
+            foreach ($paths as $package => $path) {
+                $md .= sprintf("- %s: %s\n", self::cell($package), $path);
+            }
+            $md .= "\n";
+        }
         if (null !== $result && [] !== $result->rewrites) {
             $md .= "## composer.json\n\n".implode("\n", array_map(static fn (string $r) => '- `'.$r.'`', $result->rewrites))."\n\n";
         }
@@ -130,6 +137,9 @@ final class ReportWriter
         }
         if ([] !== ($blocked = $plan->withDecision('blocked'))) {
             $detail .= "\n\nBlocked:".$list($blocked, static fn (Move $m) => ': '.$m->reason);
+        }
+        if ([] !== ($paths = $plan->paths())) {
+            $detail .= "\n\nThe way ahead:".implode('', array_map(static fn (string $p, string $path) => "\n- $p: $path", array_keys($paths), $paths));
         }
         $tests = $result->steps['tests'] ?? ['status' => 'not_run', 'command' => '', 'output' => ''];
         $change = [

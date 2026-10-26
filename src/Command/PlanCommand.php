@@ -79,6 +79,13 @@ final class PlanCommand extends Command
                 $m->reason,
             ], $plan->moves));
         }
+        if ([] !== ($paths = $plan->paths())) {
+            $io->section('The way ahead (one step per run)');
+            foreach ($paths as $package => $path) {
+                $io->writeln(sprintf(' * %s: %s', $package, $path));
+            }
+            $io->newLine();
+        }
         foreach ($plan->notes as $note) {
             $io->writeln(' * '.$note);
         }

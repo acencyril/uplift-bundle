@@ -91,9 +91,12 @@ switch ($stage) {
         $sf = array_values(array_filter($moves, static fn ($m) => 'symfony/*' === $m['package'] && 'apply' === $m['decision']));
         check(1 === count($sf) && str_starts_with($sf[0]['from'], '7.3.') && str_starts_with($sf[0]['to'], '7.4.') && 'minor' === $sf[0]['level'],
             'uplift:plan does not propose Symfony 7.3 -> 7.4', json_encode($moves, JSON_UNESCAPED_SLASHES));
+        $eight = array_filter($moves, static fn ($m) => 'symfony/*' === $m['package'] && !str_starts_with($m['to'], '7.'));
+        check([] === $eight, 'uplift:plan', 'a Symfony move past 7.4 in this run (one step per run): '.json_encode(array_values($eight), JSON_UNESCAPED_SLASHES));
+        check([] !== preg_grep('/^8\./', $sf[0]['later'] ?? []), 'uplift:plan', 'the way ahead does not list Symfony 8.x after 7.4: '.json_encode($sf[0]['later'] ?? null));
         $lines = array_map(static fn ($m) => sprintf('%s %s: %s %s -> %s (%s)%s', $m['decision'], $m['category'], $m['package'], $m['from'], $m['to'], $m['level'],
             ($m['constraint_to'] ? sprintf(' [%s -> %s]', $m['constraint_from'], $m['constraint_to']) : '').('' !== $m['reason'] ? ' - '.$m['reason'] : '')), $moves);
-        fact('uplift:plan', 'PHP '.($plan['php']['current'] ?? '?').' -> '.($plan['php']['after'] ?? '?')."\n".implode("\n", $lines)."\nNotes: ".implode(' | ', $plan['notes'] ?? []));
+        fact('uplift:plan', 'PHP '.($plan['php']['current'] ?? '?').' -> '.($plan['php']['after'] ?? '?')."\n".implode("\n", $lines)."\nThe way ahead: ".json_encode($plan['paths'] ?? [], JSON_UNESCAPED_SLASHES)."\nNotes: ".implode(' | ', $plan['notes'] ?? []));
         break;
 
     case 'apply':

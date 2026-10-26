@@ -6,6 +6,29 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-26
+
+### Changed
+- **One step at a time** (behaviour change): each run looks at the next step only, for
+  PHP, for Symfony and for every package, the way upgrade guides go. With
+  `UPLIFT_SYMFONY=major`, a project on Symfony 5.4 or 7.3 used to be moved straight to
+  the newest 8.x.
+  - Before a major move, a package goes to the latest minor of its current major
+    (Symfony 6.2 -> 6.4, the LTS, where every deprecation of 7.0 shows); from there, to
+    the latest release of the next major only (6.4 -> 7.x, never 8.x; 7.4 -> 8.1 is
+    fine). Below 1.0, each minor is its own step (0.3 -> 0.4 -> 0.5).
+  - PHP moves one branch per run (8.1 -> 8.2, never 8.1 -> 8.4); `UPLIFT_PHP_MAX` still
+    applies.
+  - The policy still decides how far this run's step goes (`apply`, `propose`,
+    `blocked`); moves beyond the step are no longer listed as proposed or blocked.
+
+### Added
+- The way ahead: each move lists the steps left for later runs (`later` in the JSON),
+  and the plan, `report.md` ("The way ahead"), `report.json` (`paths`) and the Rehearsal
+  change show them: `symfony/*: 7.3.5 -> 7.4.8 now; then 8.1.2 in later runs`.
+- README: "One step at a time", and "Older projects" (PHP 5 / 7, Symfony 4 / 5): why
+  Uplift does not install there, and the manual path to Symfony 6.4.
+
 ## [0.1.1] — 2026-10-26
 
 ### Added
@@ -81,6 +104,7 @@ First release.
 - `uplift:apply --adopt`: looks for the new features after the version move, rewrites
   them only after a move whose tests passed, in a commit of their own with `--commit`.
 
-[Unreleased]: https://github.com/acencyril/uplift-bundle/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/acencyril/uplift-bundle/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/acencyril/uplift-bundle/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/acencyril/uplift-bundle/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/acencyril/uplift-bundle/releases/tag/v0.1.0

@@ -23,9 +23,16 @@ use Acencyril\UpliftBundle\Source\ReleaseSource;
  * will be on. A release that needs a PHP the project cannot reach (above
  * UPLIFT_PHP_MAX, or above the PHP it is on) is blocked, with the reason.
  *
- * For each of PHP, Symfony and every direct dependency, at most three moves come out:
- * the largest one the policy allows ("apply"), a larger one that works but goes past
- * the policy ("propose"), and a still larger one that cannot be done ("blocked").
+ * One step at a time, the way upgrade guides go: each run looks at the next step only.
+ *  - A package (Symfony included) first goes to the latest minor of its major (6.2 -> 6.4,
+ *    the line where every deprecation of 7.0 shows); only from there does it move to the
+ *    latest release of the next major (6.4 -> 7.x, never 8.x). Below 1.0 each minor is
+ *    its own line (0.3 -> 0.4 -> 0.5).
+ *  - PHP moves one branch at a time (8.1 -> 8.2 -> 8.3).
+ * Within that step, at most three moves come out: the largest one the policy allows
+ * ("apply"), a larger one that works but goes past the policy ("propose"), and a still
+ * larger one that cannot be done ("blocked"). The steps after it are listed on each move
+ * ("later"), for the next runs.
  */
 final class Planner
 {
@@ -66,8 +73,9 @@ final class Planner
             $candidates = array_map(static fn (PhpBranch $b) => new Release($b->latest), $branches);
             $problem = static fn (Release $r): ?string => null !== $policy->phpMax && self::aboveCeiling($r->version, $policy->phpMax)
                 ? sprintf('above UPLIFT_PHP_MAX=%s', $policy->phpMax) : null;
-            foreach (self::choose($current, $candidates, $policy->php, 'php', $problem) as [$release, $level, $decision, $reason]) {
-                $moves[] = new Move('php', 'php', $current, $release->version, $level, $decision, $reason, $project->requirePhp(), null);
+            foreach (self::choose($current, $candidates, $policy->php, 'php', $problem, true) as [$release, $level, $decision, $reason, $later]) {
+                $later = array_values(array_filter($later, static fn (string $v) => null === $policy->phpMax || !self::aboveCeiling(Version::of($v), $policy->phpMax)));
+                $moves[] = new Move('php', 'php', $current, $release->version, $level, $decision, $reason, $project->requirePhp(), null, [], null, $later);
                 if ('apply' === $decision) {
                     $phpAfter = $release->version;
                 }
@@ -108,9 +116,9 @@ final class Planner
                 $candidates = $this->releases($lead, $outdated, $notes);
                 $problem = static fn (Release $r): ?string => $phpProblem($r->php)
                     ?? (null === ConstraintRewriter::rewrite($constraint, $r->version) ? sprintf('the constraint "%s" cannot be widened automatically', $constraint) : null);
-                foreach (self::choose($installed, $candidates, $policy->symfony, 'symfony', $problem) as [$release, $level, $decision, $reason]) {
+                foreach (self::choose($installed, $candidates, $policy->symfony, 'symfony', $problem) as [$release, $level, $decision, $reason, $later]) {
                     $to = ConstraintRewriter::rewrite($constraint, $release->version);
-                    $moves[] = new Move('symfony/*', 'symfony', $installed, $release->version, $level, $decision, $reason, $constraint, $to, $members, $release->php);
+                    $moves[] = new Move('symfony/*', 'symfony', $installed, $release->version, $level, $decision, $reason, $constraint, $to, $members, $release->php, $later);
                 }
             }
             foreach ($members as $m) {
@@ -138,8 +146,8 @@ final class Planner
             $candidates = $this->releases($name, $outdated, $notes);
             $problem = static fn (Release $r): ?string => $phpProblem($r->php)
                 ?? (null === ConstraintRewriter::rewrite($constraint, $r->version) ? sprintf('the constraint "%s" cannot be widened automatically', $constraint) : null);
-            foreach (self::choose($installed, $candidates, $policy->levelFor($category), $category, $problem) as [$release, $level, $decision, $reason]) {
-                $moves[] = new Move($name, $category, $installed, $release->version, $level, $decision, $reason, $constraint, ConstraintRewriter::rewrite($constraint, $release->version), [], $release->php);
+            foreach (self::choose($installed, $candidates, $policy->levelFor($category), $category, $problem) as [$release, $level, $decision, $reason, $later]) {
+                $moves[] = new Move($name, $category, $installed, $release->version, $level, $decision, $reason, $constraint, ConstraintRewriter::rewrite($constraint, $release->version), [], $release->php, $later);
             }
         }
 
@@ -198,13 +206,65 @@ final class Planner
     }
 
     /**
+     * The steps from $from to the newest of $versions, one per run: the latest release of
+     * the current major when the project is not on its latest minor yet, then the latest
+     * release of each next major. With $perMinor (PHP), and below 1.0, a line is a
+     * major.minor branch instead of a major.
+     *
+     * @param list<Version> $versions
+     *
+     * @return list<Version>
+     */
+    public static function ladder(Version $from, array $versions, bool $perMinor = false): array
+    {
+        $line = static fn (Version $v): string => $perMinor || 0 === $v->major ? $v->branch() : (string) $v->major;
+        $byLine = [];
+        foreach ($versions as $v) {
+            $byLine[$line($v)][] = $v;
+        }
+        $latest = static function (array $list): Version {
+            usort($list, static fn (Version $a, Version $b) => $b->compare($a));
+
+            return $list[0];
+        };
+        $steps = [];
+        $pos = $from;
+        while (true) {
+            $here = array_values(array_filter($byLine[$line($pos)] ?? [], static fn (Version $v) => $v->greaterThan($pos)));
+            if ([] !== $here && $latest($here)->minor > $pos->minor) {
+                $next = $latest($here); // not on the latest minor of its major yet
+            } else {
+                $ahead = array_values(array_filter($versions, static fn (Version $v) => $v->greaterThan($pos) && $line($v) !== $line($pos)));
+                if ([] !== $ahead) {
+                    usort($ahead, static fn (Version $a, Version $b) => $a->compare($b));
+                    $next = $latest($byLine[$line($ahead[0])]);
+                } elseif ([] !== $here) {
+                    $next = $latest($here);
+                } else {
+                    break;
+                }
+            }
+            $steps[] = $next;
+            $pos = $next;
+        }
+
+        return $steps;
+    }
+
+    /**
      * @param list<Release>              $candidates
      * @param callable(Release): ?string $problem
      *
-     * @return list<array{Release, Level, string, string}>
+     * @return list<array{Release, Level, string, string, list<string>}>
      */
-    private static function choose(Version $from, array $candidates, Level $allowed, string $category, callable $problem): array
+    private static function choose(Version $from, array $candidates, Level $allowed, string $category, callable $problem, bool $perMinor = false): array
     {
+        $ladder = self::ladder($from, array_map(static fn (Release $r) => $r->version, $candidates), $perMinor);
+        if ([] === $ladder) {
+            return [];
+        }
+        // this run looks at the next step only
+        $candidates = array_filter($candidates, static fn (Release $r) => !$r->version->greaterThan($ladder[0]));
         usort($candidates, static fn (Release $a, Release $b) => $b->version->compare($a->version));
         $apply = $propose = $blocked = null;
         foreach ($candidates as $c) {
@@ -225,6 +285,8 @@ final class Planner
         $best = null;
         foreach ([$apply, $propose, $blocked] as $m) {
             if (null !== $m && (null === $best || $m[0]->version->greaterThan($best))) {
+                $to = $m[0]->version;
+                $m[] = array_values(array_map('strval', array_filter($ladder, static fn (Version $v) => $v->greaterThan($to))));
                 $out[] = $m;
                 $best = $m[0]->version;
             }

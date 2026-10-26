@@ -64,6 +64,32 @@ pour lequel le projet est construit, après la montée de PHP du même passage. 
 version qui demande un PHP plus récent (mais sous le plafond) est bloquée avec
 `requires PHP >=8.4, the project is on 8.3.27 (the proposed PHP move to 8.4 would allow it)`.
 
+### Une marche à la fois
+
+Uplift avance comme les guides de mise à jour : une marche par passage, pour PHP, pour
+Symfony et pour chaque paquet. La marche suivante vient au passage suivant (la nuit
+suivante, le mois suivant), et seulement quand celle-ci a passé ses tests, puis a été
+validée quand [Rehearsal](https://github.com/acencyril/rehearsal-bundle) est en mode
+manuel.
+
+- **Les majeures, une par passage.** Avant une montée majeure, un paquet passe à la
+  dernière mineure de sa majeure actuelle : c'est là que toutes les dépréciations de la
+  majeure suivante apparaissent. De là seulement, il monte à la dernière version de la
+  majeure **suivante**, jamais plus loin. Pour Symfony, c'est sa LTS : un projet en 6.2
+  passe d'abord en 6.4, puis en 7.x, puis en 8.x (`7.4` -> `8.1` convient : 8.1 est une
+  mineure de la majeure suivante).
+- **Avant 1.0**, chaque mineure est une ligne à part : `0.3` -> `0.4` -> `0.5`.
+- **PHP, une branche par passage :** `8.1` -> `8.2` -> `8.3`, jamais `8.1` -> `8.4`.
+  Le plafond (`UPLIFT_PHP_MAX`) s'applique toujours.
+
+La politique dit toujours jusqu'où la marche de ce passage peut aller ; une marche
+qu'elle n'autorise pas est proposée. Le plan et le rapport montrent tout le chemin
+restant, pour voir le retard du projet :
+
+```
+symfony/*: 7.3.5 -> 7.4.8 now; then 8.1.2 in later runs
+```
+
 ## Les commandes
 
 ### `uplift:plan`
@@ -77,8 +103,10 @@ php.net, puis liste chaque montée avec sa décision :
 | `propose` | possible, mais au-delà de la politique : une personne décide |
 | `blocked` | impossible ici ; la raison dit pourquoi |
 
-Pour PHP, Symfony et chaque dépendance directe, au plus trois lignes : la plus grande
-montée autorisée, une plus grande à proposer, une plus grande encore qui est bloquée.
+Pour PHP, Symfony et chaque dépendance directe, au plus trois lignes, toutes dans la
+marche de ce passage (voir [Une marche à la fois](#une-marche-à-la-fois)) : la plus
+grande montée autorisée, une plus grande à proposer, une plus grande encore qui est
+bloquée. Puis le chemin restant : les marches des passages suivants.
 
 ```bash
 php bin/console uplift:plan                     # un tableau
@@ -277,6 +305,23 @@ jobs:
                 if: always()
                 run: git push origin HEAD || true
 ```
+
+## Les projets anciens
+
+Uplift demande PHP 8.1 ou plus et Symfony 6.4 ou plus : Composer refuse de l'installer
+sur PHP 5 ou 7, ou à côté de Symfony 4 ou 5. C'est voulu. Rattraper plusieurs majeures
+est un chantier pour une personne : chaque majeure retire ce que la précédente avait
+déprécié, et les changements de code qu'il faut, Rector ne les couvre qu'en partie.
+
+Le chemin à la main, une majeure à la fois, chacune avec ses tests :
+
+1. Symfony 4.4 -> 5.4 : corriger les dépréciations signalées par 4.4, monter PHP à ce
+   que demande 5.4 (7.2.5 ou plus ; 8.1 facilite l'étape suivante), passer en 5.4,
+   corriger ses dépréciations ;
+2. Symfony 5.4 -> 6.4, avec PHP 8.1 ou plus ;
+3. puis `composer require acencyril/uplift-bundle`.
+
+À partir de là, Uplift fait avancer le projet, une marche par passage.
 
 ## Ce qu'il ne fait pas
 
