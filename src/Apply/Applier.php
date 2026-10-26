@@ -159,6 +159,16 @@ final class Applier
                 }
             }
             array_push($names, ...$packages);
+            if ('symfony' === $m->category) {
+                // The components the project does not require itself (symfony/doctrine-bridge
+                // through doctrine-bundle, symfony/http-client through a bundle…) are on the
+                // same release line: they move with it, or they stay behind on the old minor.
+                foreach ($project->lockedVersions() as $name => $version) {
+                    if (str_starts_with($name, 'symfony/') && !\in_array($name, $names, true) && Version::parse($version)?->branch() === $m->from->branch()) {
+                        $names[] = $name;
+                    }
+                }
+            }
             if ('symfony' !== $m->category) {
                 $with[] = $m->package.':'.$m->to->format();
             }

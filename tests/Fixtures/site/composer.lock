@@ -4,8 +4,10 @@
         { "name": "acencyril/sentinelle-bundle", "version": "v0.3.1" },
         { "name": "doctrine/orm", "version": "3.3.1" },
         { "name": "symfony/console", "version": "v7.4.1" },
+        { "name": "symfony/doctrine-bridge", "version": "v7.4.1" },
         { "name": "symfony/flex", "version": "v2.8.0" },
         { "name": "symfony/framework-bundle", "version": "v7.4.1" },
+        { "name": "symfony/polyfill-mbstring", "version": "v1.33.0" },
         { "name": "symfony/yaml", "version": "v7.4.1" },
         { "name": "twig/twig", "version": "v3.21.0" }
     ],

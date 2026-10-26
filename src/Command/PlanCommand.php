@@ -48,7 +48,7 @@ final class PlanCommand extends Command
 
         switch ($input->getOption('format')) {
             case 'json':
-                $output->writeln((string) json_encode(ReportWriter::data($plan, null, $now, basename($this->uplift->projectDir())), \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE));
+                $output->writeln(ReportWriter::encode(ReportWriter::data($plan, null, $now, basename($this->uplift->projectDir()))));
 
                 return Command::SUCCESS;
             case 'markdown':

@@ -21,6 +21,15 @@ final class ReportWriter
 {
     public const VERSION = '0.1.0';
 
+    /**
+     * Command output is not always valid UTF-8 (a test printing binary, a tail cut inside a
+     * character): json_encode() then returned false and the report was an empty file.
+     */
+    public static function encode(mixed $data): string
+    {
+        return json_encode($data, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_INVALID_UTF8_SUBSTITUTE | \JSON_THROW_ON_ERROR);
+    }
+
     /** @return array<string, mixed> */
     public static function data(Plan $plan, ?ApplyResult $result, \DateTimeImmutable $at, string $project = ''): array
     {
@@ -40,7 +49,7 @@ final class ReportWriter
             throw new \RuntimeException(sprintf('Cannot create %s.', $dir));
         }
         $data = self::data($plan, $result, $at, $project);
-        file_put_contents($dir.'/report.json', json_encode($data, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
+        file_put_contents($dir.'/report.json', self::encode($data)."\n");
         file_put_contents($dir.'/report.md', self::markdown($plan, $result, $at, $project));
 
         return ['json' => $dir.'/report.json', 'markdown' => $dir.'/report.md'];
@@ -145,7 +154,7 @@ final class ReportWriter
         if (!is_dir(\dirname($file))) {
             mkdir(\dirname($file), 0o775, true);
         }
-        file_put_contents($file, json_encode($data, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
+        file_put_contents($file, self::encode($data)."\n");
 
         return $id;
     }
@@ -173,7 +182,7 @@ final class ReportWriter
             $data = ['tool' => 'uplift', 'version' => self::VERSION, 'generated_at' => $at->format(\DATE_ATOM), 'project' => $project, 'status' => 'adoptions'];
         }
         $data['adoptions'] = self::adoptionsData($plan, $result) + ['generated_at' => $at->format(\DATE_ATOM)];
-        file_put_contents($json, json_encode($data, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
+        file_put_contents($json, self::encode($data)."\n");
 
         $md = $dir.'/report.md';
         $text = is_file($md) ? (string) file_get_contents($md) : '# Uplift report'.('' !== $project ? ': '.$project : '')."\n\n".$at->format('Y-m-d H:i T')."\n";
@@ -280,7 +289,7 @@ final class ReportWriter
         if (!is_dir(\dirname($file))) {
             mkdir(\dirname($file), 0o775, true);
         }
-        file_put_contents($file, json_encode($data, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
+        file_put_contents($file, self::encode($data)."\n");
 
         return $ids;
     }

@@ -84,6 +84,12 @@ final class ComposerProject
         return Version::parse($this->locked[strtolower($package)] ?? '');
     }
 
+    /** @return array<string, string> the version of every locked package, by lowercase name */
+    public function lockedVersions(): array
+    {
+        return $this->locked;
+    }
+
     public function hasLock(): bool
     {
         return [] !== $this->locked;

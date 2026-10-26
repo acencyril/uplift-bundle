@@ -73,7 +73,7 @@ final class ApplierTest extends TestCase
             '"php": "8.3.12" => "php": "8.3.27"',
         ], $this->diff('site'), 'only the constraints past their ceiling, and the pinned platform');
         self::assertSame([
-            'composer update symfony/console symfony/framework-bundle symfony/yaml symfony/browser-kit acencyril/sentinelle-bundle doctrine/orm twig/twig phpunit/phpunit'
+            'composer update symfony/console symfony/framework-bundle symfony/yaml symfony/browser-kit symfony/doctrine-bridge acencyril/sentinelle-bundle doctrine/orm twig/twig phpunit/phpunit'
             .' --with acencyril/sentinelle-bundle:0.4.0 --with doctrine/orm:3.3.4 --with twig/twig:3.21.1 --with phpunit/phpunit:11.5.40 --with-dependencies --no-interaction --no-progress',
             'vendor/bin/phpunit',
         ], $runner->commands);
@@ -101,6 +101,8 @@ final class ApplierTest extends TestCase
             '"require": "7.4.*" => "require": "8.0.*"',
         ], $this->diff('site'));
         self::assertStringContainsString('--with symfony/flex:2.9.0', $runner->commands[0]);
+        self::assertStringContainsString(' symfony/doctrine-bridge ', $runner->commands[0], 'a component on the old release line moves with it');
+        self::assertStringNotContainsString('polyfill', $runner->commands[0], 'packages of another release line are left to their dependents');
         // The note only appears when the steps ran on another PHP than the one now targeted.
         $note = array_filter($result->notes, static fn (string $n) => str_contains($n, 'targets PHP 8.4'));
         if (\PHP_MAJOR_VERSION.'.'.\PHP_MINOR_VERSION === '8.4') {

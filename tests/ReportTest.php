@@ -72,6 +72,20 @@ final class ReportTest extends TestCase
         self::assertStringContainsString("\n\nBlocked:\n- php 8.1.0 -> 8.4.14 (minor): above UPLIFT_PHP_MAX=8.1", $change['detail']);
     }
 
+    public function testOutputThatIsNotUtf8StillMakesAReport(): void
+    {
+        $project = new ComposerProject($this->dir);
+        $plan = (new Planner(FixedReleaseSource::standard(), new FixedPhpSource()))->plan($project, Policy::fromEnv(['UPLIFT_ENABLED' => '1']), null, '8.1.2');
+        $result = (new Applier(new FakeRunner()))->apply($project, $plan);
+        $result->step('tests', 'passed', 'vendor/bin/phpunit', 0, "OK \xC3 (cut inside a character)");
+
+        $files = ReportWriter::write($this->dir.'/var/uplift', $plan, $result, new \DateTimeImmutable(), 'legacy');
+        $json = json_decode((string) file_get_contents($files['json']), true);
+
+        self::assertIsArray($json, 'report.json is valid JSON');
+        self::assertStringContainsString("OK \u{FFFD} (cut", $json['result']['steps']['tests']['output']);
+    }
+
     public function testAPlanAlone(): void
     {
         $plan = (new Planner(FixedReleaseSource::standard(), new FixedPhpSource()))->plan(new ComposerProject($this->dir), Policy::fromEnv([]), null, '8.1.2');

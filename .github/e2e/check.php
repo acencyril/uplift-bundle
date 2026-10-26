@@ -100,6 +100,12 @@ switch ($stage) {
         $json = json("$app/composer.json");
         $report = json("$app/var/uplift/report.json");
         $result = $report['result'] ?? [];
+        if ([] === $report) {
+            $raw = (string) @file_get_contents("$app/var/uplift/report.json");
+            json_decode($raw);
+            check(false, 'report.json unreadable', sprintf('%d bytes, %s: %s', strlen($raw), json_last_error_msg(), substr($raw, 0, 800)));
+            check(false, 'uplift:apply output', tail((string) @file_get_contents("$logs/apply.log"), 3500));
+        }
         check('7.4.*' === ($json['require']['symfony/framework-bundle'] ?? null), 'composer.json', 'symfony/framework-bundle is '.var_export($json['require']['symfony/framework-bundle'] ?? null, true).', expected 7.4.*');
         check('7.4.*' === ($json['extra']['symfony']['require'] ?? null), 'composer.json', 'extra.symfony.require is '.var_export($json['extra']['symfony']['require'] ?? null, true));
         $before = locked("$logs/before.composer.lock");

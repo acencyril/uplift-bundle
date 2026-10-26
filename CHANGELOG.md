@@ -14,6 +14,13 @@ versioning follows [SemVer](https://semver.org/).
   framework.test config is not set"), so every upgrade and every adoption was reported
   as failing its tests and put back. Found by an end-to-end run on a real Symfony 7.3
   application.
+- A Symfony move now also updates the Symfony components the project does not require
+  itself but has locked on the same release line (`symfony/doctrine-bridge` through
+  DoctrineBundle, `symfony/http-client`, `symfony/stopwatch`…). With
+  `--with-dependencies` only, they stayed on 7.3 next to a 7.4 framework.
+- `report.json` and the Rehearsal changes file are written even when a command's output
+  is not valid UTF-8 (the invalid bytes are replaced); `json_encode()` used to fail and
+  leave an empty report.
 
 ## [0.1.0] — 2026-10-25
 
