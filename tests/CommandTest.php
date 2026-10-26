@@ -101,6 +101,11 @@ final class CommandTest extends TestCase
         self::assertSame('passed', json_decode((string) file_get_contents($this->dir.'/out/report.json'), true)['status']);
         $changes = json_decode((string) file_get_contents($this->dir.'/.rehearsal/changes.json'), true);
         self::assertSame('uplift', $changes['changes'][0]['source']);
+        $summary = $changes['changes'][0]['summary'];
+        self::assertSame('Symfony', $summary['main']['label']);
+        self::assertSame(['after' => 'passed'], $summary['tests']);
+        self::assertSame(1, $summary['constraints_rewritten'], 'require.acencyril/sentinelle-bundle (the platform PHP is not a constraint)');
+        self::assertIsInt($summary['packages_moved']);
         self::assertStringContainsString('"acencyril/sentinelle-bundle": "^0.4"', (string) file_get_contents($this->dir.'/composer.json'));
     }
 

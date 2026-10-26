@@ -122,6 +122,13 @@ switch ($stage) {
         $changes = json("$app/.rehearsal/changes.json");
         $ids = array_column($changes['changes'] ?? [], 'id');
         check([] !== preg_grep('/^uplift-\d{4}-\d{2}-\d{2}$/', $ids), 'Rehearsal changes file', '.rehearsal/changes.json has no Uplift change: '.json_encode($ids));
+        $summary = array_values(array_filter($changes['changes'] ?? [], static fn ($c) => 1 === preg_match('/^uplift-\d{4}-\d{2}-\d{2}$/', $c['id'] ?? '')))[0]['summary'] ?? [];
+        check(str_starts_with($summary['main']['from'] ?? '', '7.3.') && str_starts_with($summary['main']['to'] ?? '', '7.4.') && 'symfony/*' === ($summary['main']['package'] ?? null),
+            'Rehearsal summary', 'main move: '.json_encode($summary['main'] ?? null, JSON_UNESCAPED_SLASHES));
+        check(($summary['tests'] ?? null) === ['after' => 'passed'], 'Rehearsal summary', 'tests: '.json_encode($summary['tests'] ?? null).' (after only: Uplift does not run the tests before)');
+        check(($summary['main']['to'] ?? null) === ltrim($after['symfony/framework-bundle'] ?? '', 'v'), 'Rehearsal summary', 'main.to is not the locked framework-bundle '.($after['symfony/framework-bundle'] ?? '?'));
+        check(($summary['constraints_rewritten'] ?? null) === count(preg_grep('/^require(-dev)?\./', $result['rewrites'] ?? [])), 'Rehearsal summary', 'constraints_rewritten '.json_encode($summary['constraints_rewritten'] ?? null));
+        fact('After uplift:apply - Rehearsal summary', json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
         $moved = [];
         foreach ($after as $name => $v) {
@@ -181,6 +188,13 @@ switch ($stage) {
                     check('applied' === $status, 'uplift:adopt --apply '.$f['id'], sprintf('outcome %s with %s: %s', $status, $f['rewrite'], json_encode($outcomes[$f['id']] ?? null, JSON_UNESCAPED_SLASHES)));
                 }
             }
+            $changes = json("$app/.rehearsal/changes.json")['changes'] ?? [];
+            $main = array_values(array_filter($changes, static fn ($c) => 1 === preg_match('/^uplift-\d{4}-\d{2}-\d{2}$/', $c['id'] ?? '')))[0] ?? [];
+            $onCard = array_column($main['summary']['adoptions'] ?? [], 'status', 'id');
+            foreach ($outcomes as $id => $o) {
+                check(($onCard[$id] ?? null) === ($o['status'] ?? null), 'Rehearsal summary adoptions', sprintf('%s: %s on the card, %s in the report', $id, $onCard[$id] ?? 'missing', $o['status'] ?? '?'));
+            }
+            $lines[] = 'On the summary card: '.json_encode($main['summary']['adoptions'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             $lines[] = "git diff:\n".tail((string) @file_get_contents("$logs/adopt-diff.log"), 3000);
         }
         fact($stage, implode("\n", $lines)."\nNotes: ".implode(' | ', array_merge($a['notes'] ?? [], $a['result']['notes'] ?? [])));
@@ -195,7 +209,8 @@ switch ($stage) {
             .implode("\n", array_map(static fn ($c) => sprintf('- %s: %s [%s] %s', $c['id'], $c['title'], $c['state'], $c['tests']), $r['listed'] ?? []))
             ."\nValidated: ".($r['validated'] ?? '?').' -> '.($r['state_after'] ?? '?').' ('.($r['flash'] ?? '').')'
             ."\nRecorded in var/rehearsal/decisions.json: ".json_encode($r['decisions_file'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
-            ."\nrehearsal:status --json counts: ".json_encode($status['counts'] ?? null));
+            ."\nrehearsal:status --json counts: ".json_encode($status['counts'] ?? null)
+            ."\nSummary card: ".($r['card'] ?? '(none)'));
         break;
 
     case 'echo':

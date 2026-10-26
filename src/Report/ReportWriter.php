@@ -19,7 +19,7 @@ use Acencyril\UpliftBundle\Plan\Plan;
  */
 final class ReportWriter
 {
-    public const VERSION = '0.2.1';
+    public const VERSION = '0.3.0';
 
     /**
      * Command output is not always valid UTF-8 (a test printing binary, a tail cut inside a
@@ -157,6 +157,7 @@ final class ReportWriter
                 'output' => mb_substr($tests['output'], -4000),
             ],
             'proposed_at' => $at->format(\DATE_ATOM),
+            'summary' => self::summary($plan, $result),
         ];
         $changes[] = $change;
         $data['changes'] = $changes;
@@ -167,6 +168,59 @@ final class ReportWriter
         file_put_contents($file, self::encode($data)."\n");
 
         return $id;
+    }
+
+    /**
+     * The facts of this run for Rehearsal's summary card (acencyril/rehearsal-bundle >= 0.2).
+     * Only what Uplift measured: the tests before the move are not run, so they are left out.
+     *
+     * @return array<string, mixed>
+     */
+    public static function summary(Plan $plan, ApplyResult $result): array
+    {
+        $summary = [];
+        $main = null;
+        foreach ($result->applied as $m) {
+            if ('symfony' === $m->category) {
+                $main = $m;
+                break;
+            }
+            if ('php' !== $m->category) {
+                $main ??= $m;
+            }
+        }
+        if (null !== $main) {
+            $locked = $result->lockChanges['symfony' === $main->category ? 'symfony/framework-bundle' : $main->package] ?? null;
+            $summary['main'] = [
+                'package' => $main->package,
+                'label' => 'symfony' === $main->category ? 'Symfony' : $main->package,
+                'from' => $locked['from'] ?? (string) $main->from,
+                'to' => $locked['to'] ?? (string) $main->to,
+            ];
+        }
+        foreach ($result->applied as $m) {
+            if ('php' === $m->category && (string) $m->from !== (string) $m->to) {
+                $summary['php'] = ['from' => (string) $m->from, 'to' => (string) $m->to];
+            }
+        }
+        if (null !== $result->lockChanges) {
+            $summary['packages_moved'] = \count($result->lockChanges);
+        }
+        $summary['constraints_rewritten'] = \count(array_filter($result->rewrites, static fn (string $r) => (bool) preg_match('/^require(-dev)?\./', $r)));
+        if (isset($result->steps['tests'])) {
+            $status = $result->steps['tests']['status'];
+            $summary['tests'] = ['after' => \in_array($status, ['passed', 'failed'], true) ? $status : 'not_run'];
+        }
+        if ([] !== $result->rector['files'] || [] !== $result->rector['rules']) {
+            $summary['deprecations_fixed'] = $result->rector;
+        }
+        $summary['blocked'] = array_map(static fn (Move $m) => ['name' => $m->package, 'version' => (string) $m->to, 'reason' => $m->reason], $plan->withDecision('blocked'));
+        $summary['path_ahead'] = [];
+        foreach ($plan->ahead() as $package => $versions) {
+            $summary['path_ahead'][] = ['name' => $package, 'versions' => $versions];
+        }
+
+        return array_filter($summary, static fn ($v) => [] !== $v);
     }
 
     /** @return array<string, mixed> the "adoptions" entry of report.json */
@@ -294,6 +348,18 @@ final class ReportWriter
             $changes = array_values(array_filter($changes, static fn ($c) => !\is_array($c) || ($c['id'] ?? null) !== $id));
             $changes[] = $change;
             $ids[] = $id;
+        }
+        // the upgrade's change shows the adoptions on its summary card
+        for ($i = \count($changes) - 1; $i >= 0; --$i) {
+            if (\is_array($changes[$i]) && preg_match('/^uplift-\d{4}-\d{2}-\d{2}$/', (string) ($changes[$i]['id'] ?? '')) && \is_array($changes[$i]['summary'] ?? null)) {
+                $changes[$i]['summary']['adoptions'] = array_map(static fn (Finding $f) => [
+                    'id' => $f->id(),
+                    'title' => $f->title,
+                    'status' => \in_array($s = $result?->outcomes[$f->id()]['status'] ?? 'proposed', ['applied', 'untested', 'reverted', 'rector_failed', 'unchanged'], true) ? $s : 'proposed',
+                    'places' => \count($f->candidates),
+                ], $findings);
+                break;
+            }
         }
         $data['changes'] = $changes;
         if (!is_dir(\dirname($file))) {

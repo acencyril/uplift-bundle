@@ -102,10 +102,16 @@ final class Applier
             return $result;
         }
         $result->applied = $moves;
+        if (null !== $lock) {
+            $result->lockChanges = self::lockDiff($lock, is_file($lockFile) ? (string) file_get_contents($lockFile) : '');
+        }
 
         if (($options['rector'] ?? true) && is_file($dir.'/vendor/bin/rector') && is_file($dir.'/rector.php')) {
             $rector = $this->runner->run(['vendor/bin/rector', 'process', '--no-progress-bar', '--no-ansi'], $dir, 1800);
             $result->step('rector', $rector->ok() ? 'done' : 'failed', 'vendor/bin/rector process', $rector->exitCode, $rector->tail());
+            if ($rector->ok()) {
+                $result->rector = self::rectorChanges($rector->output);
+            }
             if (!$rector->ok()) {
                 $result->notes[] = 'Rector failed (see its output in the report): the code was not rewritten for the new versions. Check rector.php.';
             }
@@ -139,6 +145,58 @@ final class Applier
         }
 
         return $result;
+    }
+
+    /**
+     * The packages whose locked version changed between two composer.lock texts.
+     *
+     * @return array<string, array{from: ?string, to: ?string}>
+     */
+    public static function lockDiff(string $before, string $after): array
+    {
+        $versions = static function (string $text): array {
+            $lock = json_decode($text, true);
+            $out = [];
+            foreach (['packages', 'packages-dev'] as $section) {
+                foreach (\is_array($lock[$section] ?? null) ? $lock[$section] : [] as $p) {
+                    if (isset($p['name'], $p['version']) && \is_string($p['name'])) {
+                        $out[$p['name']] = ltrim((string) $p['version'], 'v');
+                    }
+                }
+            }
+
+            return $out;
+        };
+        $old = $versions($before);
+        $new = $versions($after);
+        $diff = [];
+        foreach ($old + $new as $name => $_) {
+            if (($old[$name] ?? null) !== ($new[$name] ?? null)) {
+                $diff[$name] = ['from' => $old[$name] ?? null, 'to' => $new[$name] ?? null];
+            }
+        }
+        ksort($diff);
+
+        return $diff;
+    }
+
+    /**
+     * What "rector process" rewrote, read from its console output: the files ("1) src/X.php:15")
+     * and the rules ("Applied rules:" then " * RenameAttributeRector").
+     *
+     * @return array{rules: list<string>, files: list<string>}
+     */
+    public static function rectorChanges(string $output): array
+    {
+        preg_match_all('/^\d+\) (\S+?)(?::\d+)?\s*$/m', $output, $files);
+        preg_match_all('/^Applied rules:\s*\R((?:\s*\* \S+\s*\R?)+)/m', $output, $blocks);
+        $rules = [];
+        foreach ($blocks[1] as $block) {
+            preg_match_all('/\* (\S+)/', $block, $m);
+            array_push($rules, ...$m[1]);
+        }
+
+        return ['rules' => array_values(array_unique($rules)), 'files' => array_values(array_unique($files[1]))];
     }
 
     /** @param list<Move> $moves */

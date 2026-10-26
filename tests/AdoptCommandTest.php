@@ -105,6 +105,9 @@ final class AdoptCommandTest extends TestCase
         $ids = array_column(json_decode((string) file_get_contents($this->dir.'/.rehearsal/changes.json'), true)['changes'], 'id');
         self::assertSame('uplift-'.date('Y-m-d'), $ids[0]);
         self::assertSame(['uplift-adopt-as-command', 'uplift-adopt-readonly-promotion'], \array_slice($ids, 1));
+        $summary = json_decode((string) file_get_contents($this->dir.'/.rehearsal/changes.json'), true)['changes'][0]['summary'];
+        self::assertSame(['passed'], array_values($summary['tests']));
+        self::assertSame(['as-command' => 'applied', 'readonly-promotion' => 'applied'], array_column($summary['adoptions'], 'status', 'id'));
         $md = (string) file_get_contents($this->dir.'/var/uplift/report.md');
         self::assertStringContainsString('## Applied', $md);
         self::assertStringContainsString('## New features', $md);

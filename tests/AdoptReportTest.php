@@ -111,6 +111,7 @@ final class AdoptReportTest extends TestCase
         $data = json_decode((string) file_get_contents($file), true);
         self::assertSame('November', $data['title']);
         self::assertSame(['uplift-2026-11-01', 'uplift-adopt-as-command', 'uplift-adopt-map-request', 'uplift-adopt-readonly-promotion'], array_column($data['changes'], 'id'), 'kept, and replaced not duplicated');
+        self::assertArrayNotHasKey('summary', $data['changes'][0], 'a change without a summary (an older Uplift) is left as it was');
         [, $command, $map, $readonly] = $data['changes'];
 
         self::assertSame(['id', 'title', 'detail', 'replaced', 'check', 'url', 'source', 'revision', 'tests', 'proposed_at'], array_keys($command));
@@ -131,6 +132,31 @@ final class AdoptReportTest extends TestCase
         foreach ($data['changes'] as $c) {
             self::assertMatchesRegularExpression('/^[a-z0-9._-]{1,64}$/', $c['id'], 'a valid Rehearsal id');
         }
+    }
+
+    public function testTheUpgradeSummaryListsTheAdoptions(): void
+    {
+        $file = $this->dir.'/.rehearsal/changes.json';
+        mkdir(\dirname($file));
+        $summary = ['main' => ['package' => 'symfony/*', 'label' => 'Symfony', 'from' => '7.3.11', 'to' => '7.4.21']];
+        file_put_contents($file, json_encode(['changes' => [
+            ['id' => 'uplift-2026-10-31', 'title' => 'Older', 'summary' => $summary],
+            ['id' => 'uplift-2026-11-01', 'title' => 'Dependency upgrades (3)', 'summary' => $summary],
+            ['id' => 'manual-fix', 'title' => 'Not an upgrade', 'summary' => $summary],
+        ]]));
+        [$plan, $result] = $this->adopt();
+        ReportWriter::adoptionsToRehearsal($file, $plan, $result, $this->at);
+
+        $changes = array_column(json_decode((string) file_get_contents($file), true)['changes'], null, 'id');
+        $adoptions = $changes['uplift-2026-11-01']['summary']['adoptions'];
+        self::assertSame(['id' => 'as-command', 'title' => 'Name commands with #[AsCommand]', 'status' => 'applied', 'places' => 2], $adoptions[0], 'the latest upgrade change only');
+        self::assertSame(['as-command' => 'applied', 'map-request' => 'proposed', 'readonly-promotion' => 'reverted'], array_column($adoptions, 'status', 'id'));
+        foreach ($plan->withDecision('apply', 'propose', 'manual') as $f) {
+            self::assertSame(\count($f->candidates), array_column($adoptions, 'places', 'id')[$f->id()]);
+        }
+        self::assertSame('7.4.21', $changes['uplift-2026-11-01']['summary']['main']['to'], 'the rest of the summary is kept');
+        self::assertArrayNotHasKey('adoptions', $changes['uplift-2026-10-31']['summary']);
+        self::assertArrayNotHasKey('adoptions', $changes['manual-fix']['summary']);
     }
 
     public function testNoCandidatesNoRehearsalChange(): void

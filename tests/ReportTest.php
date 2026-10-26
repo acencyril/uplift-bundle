@@ -75,6 +75,46 @@ final class ReportTest extends TestCase
         self::assertStringContainsString("Moved:\n- php 8.1.0 -> 8.1.33 (patch)\n- symfony/* 6.4.10 -> 6.4.26 (patch)", $change['detail']);
         self::assertStringContainsString("\n\nBlocked:\n- php 8.1.0 -> 8.2.29 (minor): above UPLIFT_PHP_MAX=8.1", $change['detail']);
         self::assertStringContainsString("\n\nThe way ahead:\n- symfony/*: 6.4.10 -> 6.4.26 now; then 7.4.8, 8.0.5 in later runs", $change['detail']);
+
+        $summary = $change['summary'];
+        self::assertSame(['package' => 'symfony/*', 'label' => 'Symfony', 'from' => '6.4.10', 'to' => '6.4.26'], $summary['main']);
+        self::assertSame(['from' => '8.1.0', 'to' => '8.1.33'], $summary['php']);
+        self::assertSame(0, $summary['packages_moved'], 'the lock was compared: nothing moved in it (fake composer)');
+        self::assertSame(\count(preg_grep('/^require(-dev)?\./', $result->rewrites)), $summary['constraints_rewritten']);
+        self::assertSame(['after' => 'passed'], $summary['tests'], 'the tests before the move are not run: not in the summary');
+        self::assertArrayNotHasKey('deprecations_fixed', $summary, 'no Rector here');
+        self::assertArrayNotHasKey('adoptions', $summary);
+        self::assertSame(['name' => 'php', 'version' => '8.2.29', 'reason' => 'above UPLIFT_PHP_MAX=8.1'], $summary['blocked'][0]);
+        self::assertSame(['name' => 'symfony/*', 'versions' => ['7.4.8', '8.0.5']], $summary['path_ahead'][0]);
+    }
+
+    public function testTheSummaryCountsTheLockAndRector(): void
+    {
+        $project = new ComposerProject($this->dir);
+        $plan = (new Planner(FixedReleaseSource::standard(), new FixedPhpSource()))->plan($project, Policy::fromEnv(['UPLIFT_ENABLED' => '1']), null, '8.1.2');
+        $result = (new Applier(new FakeRunner()))->apply($project, $plan);
+        $result->lockChanges = [
+            'symfony/console' => ['from' => '6.4.10', 'to' => '6.4.26'],
+            'symfony/framework-bundle' => ['from' => '6.4.11', 'to' => '6.4.25'],
+            'symfony/polyfill-php85' => ['from' => null, 'to' => '1.43.0'],
+        ];
+        $result->rector = ['rules' => ['RenameAttributeRector'], 'files' => ['src/Controller/HomeController.php']];
+        $summary = ReportWriter::summary($plan, $result);
+
+        self::assertSame(['package' => 'symfony/*', 'label' => 'Symfony', 'from' => '6.4.11', 'to' => '6.4.25'], $summary['main'], 'the versions composer locked for the framework');
+        self::assertSame(3, $summary['packages_moved']);
+        self::assertSame(['rules' => ['RenameAttributeRector'], 'files' => ['src/Controller/HomeController.php']], $summary['deprecations_fixed']);
+    }
+
+    public function testNoLockNoCount(): void
+    {
+        unlink($this->dir.'/composer.lock');
+        $project = new ComposerProject($this->dir);
+        $plan = (new Planner(FixedReleaseSource::standard(), new FixedPhpSource()))->plan($project, Policy::fromEnv(['UPLIFT_ENABLED' => '1']), null, '8.1.2');
+        $result = (new Applier(new FakeRunner()))->apply($project, $plan);
+
+        self::assertNull($result->lockChanges);
+        self::assertArrayNotHasKey('packages_moved', ReportWriter::summary($plan, $result));
     }
 
     public function testOutputThatIsNotUtf8StillMakesAReport(): void

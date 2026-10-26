@@ -6,6 +6,21 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-26
+
+### Added
+- **A summary for Rehearsal's card** (acencyril/rehearsal-bundle 0.2+): the change
+  written by `--rehearsal` carries a `summary` with the main move (Symfony, from and to
+  as locked), the PHP move, the packages moved, the composer.json constraints rewritten,
+  the tests after the move, what Rector rewrote (rules and files), the moves refused by
+  the policy with their reason, and the way ahead. What Uplift does not measure is left
+  out: the tests are not run before the move, so there is no "before".
+- `uplift:adopt --rehearsal` (and `uplift:apply --adopt`) also lists the adoptions, with
+  their outcome and places, on the summary of the latest upgrade change.
+- `report.json`: `result.lock_changes` (each package whose locked version changed) and
+  `result.rector` (the rules applied and the files Rector changed, read from its output).
+- e2e: the Rehearsal page shows the card with the run's real versions and tests.
+
 ## [0.2.1] — 2026-10-26
 
 ### Fixed
@@ -109,7 +124,9 @@ First release.
 - `uplift:apply --adopt`: looks for the new features after the version move, rewrites
   them only after a move whose tests passed, in a commit of their own with `--commit`.
 
-[Unreleased]: https://github.com/acencyril/uplift-bundle/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/acencyril/uplift-bundle/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/acencyril/uplift-bundle/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/acencyril/uplift-bundle/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/acencyril/uplift-bundle/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/acencyril/uplift-bundle/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/acencyril/uplift-bundle/releases/tag/v0.1.0

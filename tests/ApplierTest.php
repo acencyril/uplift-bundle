@@ -155,6 +155,34 @@ final class ApplierTest extends TestCase
         self::assertNotEmpty(array_filter($result->notes, static fn (string $n) => str_starts_with($n, 'Rector failed')));
     }
 
+    public function testWhatRectorRewroteAndWhatTheLockMovedAreKept(): void
+    {
+        mkdir($this->dir.'/vendor/bin', 0o777, true);
+        touch($this->dir.'/vendor/bin/rector');
+        touch($this->dir.'/rector.php');
+        $output = "2 files with changes\n====================\n\n1) src/Controller/HomeController.php:15\n\n    ---------- begin diff ----------\n@@ Line 15 @@\n-    #[Route('/')]\n+    #[\\Symfony\\Component\\Routing\\Attribute\\Route('/')]\n    ----------- end diff -----------\n\nApplied rules:\n * RenameAttributeRector\n\n"
+            ."2) src/Command/HelloCommand.php\n\n    ---------- begin diff ----------\n    ----------- end diff -----------\n\nApplied rules:\n * RenameAttributeRector\n * CommandPropertyToAttributeRector\n\n\n [OK] 2 files have been changed by Rector\n";
+        $bump = static function (string $cwd): void {
+            $lock = json_decode((string) file_get_contents($cwd.'/composer.lock'), true);
+            $lock['packages'][0]['version'] = 'v9.9.9';
+            $lock['packages'][] = ['name' => 'symfony/polyfill-php85', 'version' => 'v1.43.0'];
+            file_put_contents($cwd.'/composer.lock', json_encode($lock));
+        };
+        $runner = new FakeRunner(['vendor/bin/rector' => new RunResult(0, $output)], ['composer update' => $bump]);
+        $result = $this->apply('site', ['UPLIFT_ENABLED' => '1'], $runner);
+
+        self::assertSame(['rules' => ['RenameAttributeRector', 'CommandPropertyToAttributeRector'], 'files' => ['src/Controller/HomeController.php', 'src/Command/HelloCommand.php']], $result->rector);
+        $first = json_decode((string) file_get_contents(__DIR__.'/Fixtures/site/composer.lock'), true)['packages'][0];
+        self::assertSame([$first['name'] => ['from' => ltrim($first['version'], 'v'), 'to' => '9.9.9'], 'symfony/polyfill-php85' => ['from' => null, 'to' => '1.43.0']], $result->lockChanges);
+        self::assertSame($result->lockChanges, $result->toArray()['lock_changes']);
+    }
+
+    public function testAFailedRectorRewroteNothing(): void
+    {
+        self::assertSame(['rules' => [], 'files' => []], Applier::rectorChanges('[ERROR] Could not process "src/Kernel.php" file'));
+        self::assertSame(['rules' => [], 'files' => []], Applier::rectorChanges("\n [OK] Rector is done!\n"));
+    }
+
     public function testNoTestCommandMeansUntested(): void
     {
         $result = $this->apply('site', ['UPLIFT_ENABLED' => '1', 'UPLIFT_TEST_COMMAND' => ''], new FakeRunner());

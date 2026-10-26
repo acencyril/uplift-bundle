@@ -140,7 +140,7 @@ php bin/console uplift:apply --branch=upgrade/2026-11 --commit --rehearsal=.rehe
 |---|---|
 | `--branch=NOM` | crée cette branche et travaille dessus |
 | `--commit` | y commite le résultat (il faut un arbre de travail propre) |
-| `--rehearsal=FICHIER` | ajoute aussi le passage comme un changement dans un fichier de changements [Rehearsal](https://github.com/acencyril/rehearsal-bundle) |
+| `--rehearsal=FICHIER` | ajoute aussi le passage comme un changement dans un fichier de changements [Rehearsal](https://github.com/acencyril/rehearsal-bundle), avec un `summary` que Rehearsal 0.2+ affiche en carte : le mouvement principal, les paquets montés (d'après composer.lock), les contraintes réécrites, les tests après la montée, ce que Rector a réécrit, les mouvements refusés par la politique et la suite. Les tests ne sont pas lancés avant la montée : la carte n'a pas d'« avant » |
 | `--report-dir=DOSSIER` | où vont les rapports |
 | `--outdated=FICHIER`, `--no-outdated` | un `composer outdated` enregistré, ou aucun |
 | `--no-rector` | sans Rector |
@@ -201,7 +201,7 @@ est tentée. Le résultat de chacune (`applied`, `reverted`, `rector_failed`,
 |---|---|
 | `--apply` | réécrit avec Rector, puis les tests décident |
 | `--path=DIR` | ce qui est analysé (répétable ; défaut : le réglage `adopt_paths`, `src`) |
-| `--rehearsal=FICHIER` | un changement [Rehearsal](https://github.com/acencyril/rehearsal-bundle) par adoption (`uplift-adopt-<id>`), à valider ou rejeter un par un |
+| `--rehearsal=FICHIER` | un changement [Rehearsal](https://github.com/acencyril/rehearsal-bundle) par adoption (`uplift-adopt-<id>`), à valider ou rejeter un par un ; les adoptions apparaissent aussi sur la carte de résumé du dernier changement de montée de version |
 | `--report-dir=DIR` | où vont les rapports |
 | `--locale=en\|fr` | la langue des titres et des explications |
 

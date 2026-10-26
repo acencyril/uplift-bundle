@@ -50,6 +50,21 @@ final class RehearsalTest extends WebTestCase
         self::assertSame('To decide', $uplift[0]['state']);
         self::assertSame('Tests passed', $uplift[0]['tests']);
 
+        // the summary card (Rehearsal 0.2+), fed by Uplift with this run's real versions
+        $card = $article->filter('.rh-sum');
+        self::assertCount(1, $card, 'the Uplift change shows its summary card');
+        self::assertSame('Upgrade summary', trim($card->filter('h4')->text()));
+        $cardText = (string) preg_replace('/\s+/', ' ', $card->text());
+        self::assertMatchesRegularExpression('#7\.3\.\d+ → to 7\.4\.\d+#u', $cardText);
+        self::assertStringContainsString('7.4.', trim($card->filter('.rh-sum-to')->text()));
+        self::assertMatchesRegularExpression('/Symfony, \d+ packages moved, \d+ constraints rewritten in composer\.json/', $cardText);
+        self::assertStringContainsString('passed after', $cardText);
+        self::assertStringContainsString('Waiting for a decision', $cardText);
+        self::assertMatchesRegularExpression('/Then 8\.\d+\.\d+ in later runs/', $cardText);
+        $tiles = $card->filter('h5')->each(static fn ($h) => trim($h->text()));
+        self::assertContains('Project tests', $tiles);
+        self::assertContains('Decision', $tiles);
+
         $form = $article->selectButton('validate')->form(['comment' => 'Tried on the e2e copy: home page and admin work.']);
         $client->submit($form);
         self::assertResponseRedirects();
@@ -58,6 +73,7 @@ final class RehearsalTest extends WebTestCase
         $state = trim($after->filter('#change-'.$id.' .rh-change-head .rh-pill')->text());
         self::assertSame('Validated', $state);
         self::assertStringContainsString('admin', $after->filter('#change-'.$id.' .rh-decision')->text());
+        self::assertStringContainsString('Validated, decision recorded', $after->filter('#change-'.$id.' .rh-sum')->text(), 'the card follows the decision');
 
         $file = static::getContainer()->getParameter('kernel.project_dir').'/var/rehearsal/decisions.json';
         self::assertFileExists($file);
@@ -68,6 +84,8 @@ final class RehearsalTest extends WebTestCase
         @mkdir(\dirname($file, 2).'/e2e', 0o775, true);
         file_put_contents(\dirname($file, 2).'/e2e/rehearsal.json', json_encode([
             'listed' => $listed,
+            'card' => $cardText,
+            'card_tiles' => $tiles,
             'validated' => $id,
             'flash' => $flash,
             'state_after' => $state,

@@ -43,17 +43,8 @@ final class Plan
      */
     public function paths(): array
     {
-        $first = [];
-        foreach ($this->moves as $m) {
-            if (!isset($first[$m->package]) || 'apply' === $m->decision) {
-                $first[$m->package] ??= $m;
-                if ('apply' === $m->decision) {
-                    $first[$m->package] = $m;
-                }
-            }
-        }
         $out = [];
-        foreach ($first as $package => $m) {
+        foreach ($this->firstMoves() as $package => $m) {
             if ([] === $m->later) {
                 continue;
             }
@@ -66,6 +57,32 @@ final class Plan
         }
 
         return $out;
+    }
+
+    /**
+     * The steps left for later runs, per package: ["symfony/*" => ["8.1.9"]].
+     *
+     * @return array<string, list<string>>
+     */
+    public function ahead(): array
+    {
+        return array_filter(array_map(static fn (Move $m) => array_values(array_map('strval', $m->later)), $this->firstMoves()), static fn (array $l) => [] !== $l);
+    }
+
+    /** @return array<string, Move> per package, the move of this run (the applied one when there is one) */
+    private function firstMoves(): array
+    {
+        $first = [];
+        foreach ($this->moves as $m) {
+            if (!isset($first[$m->package]) || 'apply' === $m->decision) {
+                $first[$m->package] ??= $m;
+                if ('apply' === $m->decision) {
+                    $first[$m->package] = $m;
+                }
+            }
+        }
+
+        return $first;
     }
 
     /** @return array<string, mixed> */

@@ -29,6 +29,10 @@ final class ApplyResult
     public array $notes = [];
     /** @var list<string> the composer.json values that changed, "path: old -> new" */
     public array $rewrites = [];
+    /** @var array<string, array{from: ?string, to: ?string}>|null the packages whose locked version changed (from/to null: not in that lock); null without a composer.lock */
+    public ?array $lockChanges = null;
+    /** @var array{rules: list<string>, files: list<string>} what Rector rewrote (rules applied, files changed) */
+    public array $rector = ['rules' => [], 'files' => []];
     public ?string $branch = null;
     public ?string $commit = null;
 
@@ -54,6 +58,8 @@ final class ApplyResult
             'applied' => array_map(static fn (Move $m) => $m->toArray(), $this->applied),
             'dropped' => array_map(static fn (Move $m) => $m->toArray(), $this->dropped),
             'rewrites' => $this->rewrites,
+            'lock_changes' => $this->lockChanges,
+            'rector' => $this->rector,
             'steps' => $this->steps,
             'branch' => $this->branch,
             'commit' => $this->commit,

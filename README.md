@@ -136,7 +136,7 @@ php bin/console uplift:apply --branch=upgrade/2026-11 --commit --rehearsal=.rehe
 |---|---|
 | `--branch=NAME` | create this branch and work on it |
 | `--commit` | commit the result there (needs a clean working tree) |
-| `--rehearsal=FILE` | also add the run as one change to a [Rehearsal](https://github.com/acencyril/rehearsal-bundle) changes file |
+| `--rehearsal=FILE` | also add the run as one change to a [Rehearsal](https://github.com/acencyril/rehearsal-bundle) changes file, with a `summary` that Rehearsal 0.2+ shows as a card: the main move, packages moved (from composer.lock), constraints rewritten, tests after the move, what Rector rewrote, the moves refused by the policy and the way ahead. The tests are not run before the move, so the card has no "before" |
 | `--report-dir=DIR` | where the reports go |
 | `--outdated=FILE`, `--no-outdated` | a saved `composer outdated`, or none |
 | `--no-rector` | skip Rector |
@@ -195,7 +195,7 @@ the report.
 |---|---|
 | `--apply` | rewrite with Rector, then the tests decide |
 | `--path=DIR` | what to scan (repeatable; default: the `adopt_paths` setting, `src`) |
-| `--rehearsal=FILE` | one [Rehearsal](https://github.com/acencyril/rehearsal-bundle) change per adoption (`uplift-adopt-<id>`), to validate or reject each on its own |
+| `--rehearsal=FILE` | one [Rehearsal](https://github.com/acencyril/rehearsal-bundle) change per adoption (`uplift-adopt-<id>`), to validate or reject each on its own; the adoptions are also listed on the summary card of the latest upgrade change |
 | `--report-dir=DIR` | where the reports go |
 | `--locale=en\|fr` | the language of the titles and explanations |
 
