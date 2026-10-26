@@ -20,6 +20,17 @@ final class PolicyTest extends TestCase
         self::assertNull($p->phpMax);
         self::assertSame(['acencyril'], $p->ownVendors);
         self::assertSame('vendor/bin/phpunit', $p->testCommand);
+        self::assertSame('propose', $p->adopt);
+        self::assertSame([], $p->adoptSkip);
+    }
+
+    public function testAdoptionPolicy(): void
+    {
+        self::assertSame('off', Policy::fromEnv(['UPLIFT_ADOPT' => 'off'])->adopt);
+        self::assertSame('apply', Policy::fromEnv(['UPLIFT_ADOPT' => ' Apply '])->adopt);
+        self::assertSame('propose', Policy::fromEnv(['UPLIFT_ADOPT' => ''])->adopt);
+        self::assertSame(['as-command', 'map-request'], Policy::fromEnv(['UPLIFT_ADOPT_SKIP' => 'As-Command, ,map-request'])->adoptSkip);
+        self::assertSame(['adopt' => 'apply', 'adopt_skip' => ['x']], array_intersect_key(Policy::fromEnv(['UPLIFT_ADOPT' => 'apply', 'UPLIFT_ADOPT_SKIP' => 'x'])->toArray(), ['adopt' => 1, 'adopt_skip' => 1]));
     }
 
     public function testEveryVariable(): void
@@ -55,6 +66,7 @@ final class PolicyTest extends TestCase
         yield [['UPLIFT_ENABLED' => 'yes']];
         yield [['UPLIFT_PHP_MAX' => '8']];
         yield [['UPLIFT_PHP_MAX' => '8.1.2']];
+        yield [['UPLIFT_ADOPT' => 'yes']];
     }
 
     /** @param array<string, string> $env */

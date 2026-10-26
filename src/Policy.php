@@ -14,6 +14,8 @@ namespace Acencyril\UpliftBundle;
  *   UPLIFT_PHP_MAX       a PHP branch never to go above, e.g. 8.1 (default: none)
  *   UPLIFT_OWN_VENDOR    vendors you publish yourself, comma-separated (default acencyril; "none" for none)
  *   UPLIFT_TEST_COMMAND  the command that says the upgrade works (default vendor/bin/phpunit)
+ *   UPLIFT_ADOPT         off|propose|apply, for the new features of the installed versions (default propose)
+ *   UPLIFT_ADOPT_SKIP    adoption ids never to propose, comma-separated (default: none)
  *
  * A move above its level is proposed in the report, never applied.
  *
@@ -26,8 +28,13 @@ namespace Acencyril\UpliftBundle;
 final class Policy
 {
     public const OWN_VENDOR_FLOOR = Level::Minor;
+    public const ADOPT = ['off', 'propose', 'apply'];
+    public const VARIABLES = ['UPLIFT_ENABLED', 'UPLIFT_PHP', 'UPLIFT_SYMFONY', 'UPLIFT_PACKAGES', 'UPLIFT_PHP_MAX', 'UPLIFT_OWN_VENDOR', 'UPLIFT_TEST_COMMAND', 'UPLIFT_ADOPT', 'UPLIFT_ADOPT_SKIP'];
 
-    /** @param list<string> $ownVendors */
+    /**
+     * @param list<string> $ownVendors
+     * @param list<string> $adoptSkip
+     */
     public function __construct(
         public readonly bool $enabled = false,
         public readonly Level $php = Level::Patch,
@@ -36,7 +43,12 @@ final class Policy
         public readonly ?string $phpMax = null,
         public readonly array $ownVendors = ['acencyril'],
         public readonly string $testCommand = 'vendor/bin/phpunit',
+        public readonly string $adopt = 'propose',
+        public readonly array $adoptSkip = [],
     ) {
+        if (!\in_array($adopt, self::ADOPT, true)) {
+            throw new \InvalidArgumentException(sprintf('UPLIFT_ADOPT must be off, propose or apply, "%s" given.', $adopt));
+        }
         if (null !== $phpMax && !preg_match('/^\d+\.\d+$/', $phpMax)) {
             throw new \InvalidArgumentException(sprintf('UPLIFT_PHP_MAX must be a PHP branch such as 8.1, "%s" given.', $phpMax));
         }
@@ -54,6 +66,8 @@ final class Policy
         $own = null === $own ? ['acencyril'] : (\in_array(strtolower($own), ['', 'none', 'off'], true) ? [] : array_values(array_filter(array_map('trim', explode(',', strtolower($own))))));
         $max = $get('UPLIFT_PHP_MAX');
         $test = $get('UPLIFT_TEST_COMMAND');
+        $adopt = strtolower((string) $get('UPLIFT_ADOPT'));
+        $skip = array_values(array_filter(array_map('trim', explode(',', strtolower((string) $get('UPLIFT_ADOPT_SKIP'))))));
 
         return new self(
             \in_array($enabled, ['1', 'true'], true),
@@ -63,6 +77,8 @@ final class Policy
             '' === (string) $max ? null : $max,
             $own,
             null === $test ? 'vendor/bin/phpunit' : $test,
+            '' === $adopt ? 'propose' : $adopt,
+            $skip,
         );
     }
 
@@ -70,7 +86,7 @@ final class Policy
     public static function fromRuntime(): self
     {
         $env = [];
-        foreach (['UPLIFT_ENABLED', 'UPLIFT_PHP', 'UPLIFT_SYMFONY', 'UPLIFT_PACKAGES', 'UPLIFT_PHP_MAX', 'UPLIFT_OWN_VENDOR', 'UPLIFT_TEST_COMMAND'] as $k) {
+        foreach (self::VARIABLES as $k) {
             $v = $_SERVER[$k] ?? $_ENV[$k] ?? getenv($k);
             if (false !== $v && null !== $v) {
                 $env[$k] = $v;
@@ -107,6 +123,8 @@ final class Policy
             'own_vendor_level' => $this->levelFor('own')->value,
             'php_max' => $this->phpMax,
             'test_command' => $this->testCommand,
+            'adopt' => $this->adopt,
+            'adopt_skip' => $this->adoptSkip,
         ];
     }
 }

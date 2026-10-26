@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Acencyril\UpliftBundle\Command;
 
+use Acencyril\UpliftBundle\Adopt\Adopter;
 use Acencyril\UpliftBundle\Apply\Applier;
 use Acencyril\UpliftBundle\Composer\ComposerProject;
 use Acencyril\UpliftBundle\Report\ReportWriter;
@@ -18,8 +19,14 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand('uplift:apply', 'Does the moves the policy allows, runs Rector and the tests, writes a report. Never pushes, never deploys')]
 final class ApplyCommand extends Command
 {
-    public function __construct(private readonly Uplift $uplift, private readonly Applier $applier, private readonly string $reportDir)
-    {
+    /** @param list<string> $adoptPaths */
+    public function __construct(
+        private readonly Uplift $uplift,
+        private readonly Applier $applier,
+        private readonly string $reportDir,
+        private readonly ?Adopter $adopter = null,
+        private readonly array $adoptPaths = ['src'],
+    ) {
         parent::__construct();
     }
 
@@ -32,7 +39,8 @@ final class ApplyCommand extends Command
             ->addOption('report-dir', null, InputOption::VALUE_REQUIRED, 'where report.json and report.md go')
             ->addOption('rehearsal', null, InputOption::VALUE_REQUIRED, 'also add this run to a Rehearsal changes file (e.g. .rehearsal/changes.json)')
             ->addOption('outdated', null, InputOption::VALUE_REQUIRED, 'a saved "composer outdated --direct --format=json" instead of running it')
-            ->addOption('no-outdated', null, InputOption::VALUE_NONE, 'do not run composer outdated (Packagist only)');
+            ->addOption('no-outdated', null, InputOption::VALUE_NONE, 'do not run composer outdated (Packagist only)')
+            ->addOption('adopt', null, InputOption::VALUE_NONE, 'then look for the new features of the installed versions (as uplift:adopt), and after a move whose tests passed, rewrite those UPLIFT_ADOPT=apply allows');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -45,10 +53,31 @@ final class ApplyCommand extends Command
             'rector' => !$input->getOption('no-rector'),
         ]);
         $now = new \DateTimeImmutable();
-        $files = ReportWriter::write($input->getOption('report-dir') ?? $this->reportDir, $plan, $result, $now, basename($this->uplift->projectDir()));
+        $reportDir = $input->getOption('report-dir') ?? $this->reportDir;
+        $files = ReportWriter::write($reportDir, $plan, $result, $now, basename($this->uplift->projectDir()));
         if (null !== ($file = $input->getOption('rehearsal')) && $result->changed()) {
             $id = ReportWriter::toRehearsal($file, $plan, $result, $now);
             $io->writeln(sprintf('Rehearsal: change "%s" in %s', $id, $file));
+        }
+        if ($input->getOption('adopt') && null !== $this->adopter) {
+            if (\in_array($result->status, ['passed', 'nothing_to_do', 'disabled'], true)) {
+                // read again: composer.lock now holds the versions just moved to
+                $project = new ComposerProject($this->uplift->projectDir());
+                $adoptions = $this->adopter->find($project, $plan->policy, $this->adoptPaths);
+                $done = 'passed' === $result->status ? $this->adopter->apply($project, $adoptions, ['commit' => null !== $result->commit]) : null;
+                if (null === $done && 'apply' === $plan->policy->adopt) {
+                    $result->notes[] = 'No version moved: new features are proposed only (uplift:adopt --apply rewrites them).';
+                }
+                AdoptCommand::show($io, $adoptions, $done);
+                ReportWriter::writeAdoptions($reportDir, $adoptions, $done, $now, basename($this->uplift->projectDir()));
+                if (null !== ($file = $input->getOption('rehearsal'))) {
+                    foreach (ReportWriter::adoptionsToRehearsal($file, $adoptions, $done, $now) as $id) {
+                        $io->writeln(sprintf('Rehearsal: change "%s" in %s', $id, $file));
+                    }
+                }
+            } else {
+                $result->notes[] = 'New features not looked for: the version move did not succeed.';
+            }
         }
 
         $io->writeln(sprintf('Report: %s, %s', $files['json'], $files['markdown']));

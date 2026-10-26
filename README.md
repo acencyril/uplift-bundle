@@ -32,6 +32,7 @@ a code change:
 | `UPLIFT_PHP_MAX` | a branch, e.g. `8.1` | none | a hard ceiling for PHP (see below) |
 | `UPLIFT_OWN_VENDOR` | vendors, comma-separated, or `none` | `acencyril` | packages you publish yourself |
 | `UPLIFT_TEST_COMMAND` | a shell command | `vendor/bin/phpunit` | what says the upgrade works; empty: no tests |
+| `UPLIFT_ADOPT`, `UPLIFT_ADOPT_SKIP` | see [New features](#new-features-not-just-deprecations) | `propose` | |
 
 A level is the largest move done automatically. Anything larger is **proposed** in the
 report and waits for a person. With the defaults, patches are applied and every minor
@@ -113,12 +114,103 @@ php bin/console uplift:apply --branch=upgrade/2026-11 --commit --rehearsal=.rehe
 | `--report-dir=DIR` | where the reports go |
 | `--outdated=FILE`, `--no-outdated` | a saved `composer outdated`, or none |
 | `--no-rector` | skip Rector |
+| `--adopt` | then look for the new features of the installed versions (see [New features](#new-features-not-just-deprecations)) |
 
 Exit code 1 when composer failed, the tests failed or the run was refused; 0 otherwise
 (including "disabled" and "nothing to do").
 
 What happens next is yours: push the branch from CI, open a pull request, build a
 sandbox, try the change in your admin with Rehearsal.
+
+## New features, not just deprecations
+
+Moving versions and fixing deprecations keeps a site running. A release also brings
+features the site could now use: code written by hand before the feature existed.
+`uplift:adopt` finds it.
+
+An **adoption** is one new feature of a package version (or of PHP): its package and
+first version, a title and a short explanation (translations `adoption.<id>.title` and
+`adoption.<id>.summary`, domain `uplift`, in English and French), a link to the upstream
+documentation, a detector, and a Rector rule when one does the rewrite (otherwise the
+change is manual). Only the adoptions the site's installed versions allow are looked
+for (`composer.lock`, and for PHP the version the project is built for); the others
+are listed as *later*.
+
+Detection is static: the code is parsed (nikic/php-parser), never loaded or run. Each
+candidate is reported as `file:line` with the line itself and what to use there.
+
+| Adoption | Needs | Finds | Rewrite |
+|---|---|---|---|
+| `map-request` | `symfony/http-kernel` >= 6.3 | in controller actions, `json_decode($request->getContent())` and `$request->toArray()` (`#[MapRequestPayload]`), `$request->query->get('page')`, `->getInt('page')`… (`#[MapQueryParameter]`), `$request->query->all()` (`#[MapQueryString]`) | manual: the target class is yours to write |
+| `as-command` | `symfony/console` >= 5.3 | commands declaring `protected static $defaultName` or `$defaultDescription` (deprecated since 6.1) without `#[AsCommand]` | Rector `CommandPropertyToAttributeRector` |
+| `readonly-promotion` | PHP >= 8.1 | promoted, typed constructor properties never written again: private, or in a final class; not in Doctrine entities | Rector `ReadOnlyPropertyRector` |
+| `lock-attribute` | to be confirmed | controllers and listeners calling `createLock()` then `acquire()`/`release()` | none, **experimental** |
+
+`lock-attribute` is an example of an adoption for a feature that is **not confirmed**:
+a lock attribute on controller actions (`#[Lock('invoice-{id}', blocking: true, ttl: 10)]`
+is the idea). Symfony 7.4 has no such attribute; its package, version and API are
+placeholders until a release ships it. It is flagged *experimental*, and never
+applied.
+
+```bash
+php bin/console uplift:adopt                      # list, with the candidate places
+php bin/console uplift:adopt --apply              # rewrite what the policy allows
+php bin/console uplift:adopt --apply --rehearsal=.rehearsal/changes.json --locale=fr
+```
+
+With `--apply` and `UPLIFT_ADOPT=apply`, each adoption that has a Rector rule is done
+on its own: Rector runs on its candidate files only (a configuration written for the
+run, Rector 1.0 or later), then `UPLIFT_TEST_COMMAND`. When the tests fail (or Rector
+does), its files are put back as they were, and the next adoption is tried. The result
+of each one (`applied`, `reverted`, `rector_failed`, `unchanged`, `untested`) goes into
+the report.
+
+| Option | |
+|---|---|
+| `--apply` | rewrite with Rector, then the tests decide |
+| `--path=DIR` | what to scan (repeatable; default: the `adopt_paths` setting, `src`) |
+| `--rehearsal=FILE` | one [Rehearsal](https://github.com/acencyril/rehearsal-bundle) change per adoption (`uplift-adopt-<id>`), to validate or reject each on its own |
+| `--report-dir=DIR` | where the reports go |
+| `--locale=en\|fr` | the language of the titles and explanations |
+
+The adoptions are written into the same `report.json` (key `adoptions`) and
+`report.md` (section "New features") as `uplift:apply`.
+
+### The policy
+
+| Variable | Values | Default | |
+|---|---|---|---|
+| `UPLIFT_ADOPT` | `off`, `propose`, `apply` | `propose` | `off`: not looked for; `propose`: listed only; `apply`: `--apply` rewrites those with a Rector rule |
+| `UPLIFT_ADOPT_SKIP` | adoption ids, comma-separated | none | adoptions you do not want, e.g. `readonly-promotion` |
+
+Manual and experimental adoptions are only ever proposed.
+
+### In the monthly run
+
+`uplift:apply --adopt` looks for the new features right after the version move: one
+run moves versions, fixes deprecations (Rector with your `rector.php`) and proposes the
+new features. Adoptions are rewritten only after a move whose tests passed (and
+`UPLIFT_ADOPT=apply`); with `--commit`, they get their own commit. When nothing moved,
+they are proposed only; when the move failed, they are not looked for.
+
+### Your own adoptions
+
+Implement `Acencyril\UpliftBundle\Adopt\Adoption` (one class per feature). In an
+application with autoconfiguration, the class is tagged `uplift.adoption` on its own;
+in a bundle, tag the service. Put its texts in `translations/uplift.<locale>.*`:
+
+```php
+final class MyAdoption implements Adoption
+{
+    public function id(): string { return 'my-feature'; }
+    public function package(): string { return 'vendor/package'; }
+    public function minVersion(): string { return '2.1'; }
+    public function docs(): string { return 'https://…'; }
+    public function rector(): ?string { return null; }        // or a Rector rule class
+    public function experimental(): bool { return false; }
+    public function detect(SourceFile $file): array { /* $file->ast(), $file->candidate($node, 'hint') */ }
+}
+```
 
 ## Configuration
 
@@ -132,6 +224,8 @@ uplift:
     project_dir: '%kernel.project_dir%'
     packagist_url: 'https://repo.packagist.org'
     php_releases_url: 'https://www.php.net'
+    adopt_paths:                   # where uplift:adopt looks
+        - 'src'
 ```
 
 With Symfony Flex the recipe registers the bundle, writes this file and adds the
@@ -172,7 +266,7 @@ jobs:
                 run: |
                     git config user.name "uplift"
                     git config user.email "uplift@users.noreply.github.com"
-                    php bin/console uplift:apply --branch="upgrade/$(date +%Y-%m)" --commit
+                    php bin/console uplift:apply --branch="upgrade/$(date +%Y-%m)" --commit --adopt
             -
                 if: always()
                 run: git push origin HEAD || true

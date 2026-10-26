@@ -34,6 +34,24 @@ First release.
 - Packagist and php.net behind interfaces (`ReleaseSource`, `PhpReleaseSource`),
   commands behind `Runner`: tested with fixtures, no network.
 - Flex recipe: the bundle, `config/packages/uplift.yaml`, the `UPLIFT_*` variables.
+- New features, not just deprecations: `uplift:adopt` lists the adoptions the
+  installed versions allow (one class per feature, tagged `uplift.adoption`, so a site
+  or a bundle can add its own) and the places in the code doing the same thing by hand,
+  found statically with nikic/php-parser (`file:line` and the line). Shipped:
+  `map-request` (Symfony 6.3, `#[MapRequestPayload]`, `#[MapQueryString]`,
+  `#[MapQueryParameter]`, manual), `as-command` (Symfony Console 5.3, `#[AsCommand]`,
+  Rector), `readonly-promotion` (PHP 8.1, Rector), and `lock-attribute`, an
+  experimental example for a feature not confirmed upstream, never applied. Titles and
+  explanations in English and French (translation domain `uplift`).
+- `uplift:adopt --apply`: with `UPLIFT_ADOPT=apply`, each adoption with a Rector rule is
+  rewritten on its candidate files only, then the test command runs; its files are put
+  back when the tests (or Rector) fail.
+- The adoptions in `report.json` (`adoptions`) and `report.md` ("New features"), and
+  with `--rehearsal` one Rehearsal change per adoption (`uplift-adopt-<id>`).
+- `UPLIFT_ADOPT` (`off|propose|apply`, default `propose`) and `UPLIFT_ADOPT_SKIP`; the
+  `adopt_paths` setting (default `src`).
+- `uplift:apply --adopt`: looks for the new features after the version move, rewrites
+  them only after a move whose tests passed, in a commit of their own with `--commit`.
 
 [Unreleased]: https://github.com/acencyril/uplift-bundle/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/acencyril/uplift-bundle/releases/tag/v0.1.0

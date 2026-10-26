@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Acencyril\UpliftBundle\Report;
 
+use Acencyril\UpliftBundle\Adopt\AdoptionPlan;
+use Acencyril\UpliftBundle\Adopt\AdoptionResult;
+use Acencyril\UpliftBundle\Adopt\Candidate;
+use Acencyril\UpliftBundle\Adopt\Finding;
 use Acencyril\UpliftBundle\Apply\ApplyResult;
 use Acencyril\UpliftBundle\Plan\Move;
 use Acencyril\UpliftBundle\Plan\Plan;
@@ -144,6 +148,141 @@ final class ReportWriter
         file_put_contents($file, json_encode($data, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
 
         return $id;
+    }
+
+    /** @return array<string, mixed> the "adoptions" entry of report.json */
+    public static function adoptionsData(AdoptionPlan $plan, ?AdoptionResult $result): array
+    {
+        return $plan->toArray() + ['result' => $result?->toArray()];
+    }
+
+    /**
+     * Puts the adoptions into report.json and report.md, next to what uplift:apply wrote
+     * there (or alone when there is no report yet). A previous adoptions section is replaced.
+     *
+     * @return array{json: string, markdown: string}
+     */
+    public static function writeAdoptions(string $dir, AdoptionPlan $plan, ?AdoptionResult $result, \DateTimeImmutable $at, string $project = ''): array
+    {
+        if (!is_dir($dir) && !mkdir($dir, 0o775, true) && !is_dir($dir)) {
+            throw new \RuntimeException(sprintf('Cannot create %s.', $dir));
+        }
+        $json = $dir.'/report.json';
+        $data = is_file($json) ? json_decode((string) file_get_contents($json), true) : null;
+        if (!\is_array($data)) {
+            $data = ['tool' => 'uplift', 'version' => self::VERSION, 'generated_at' => $at->format(\DATE_ATOM), 'project' => $project, 'status' => 'adoptions'];
+        }
+        $data['adoptions'] = self::adoptionsData($plan, $result) + ['generated_at' => $at->format(\DATE_ATOM)];
+        file_put_contents($json, json_encode($data, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
+
+        $md = $dir.'/report.md';
+        $text = is_file($md) ? (string) file_get_contents($md) : '# Uplift report'.('' !== $project ? ': '.$project : '')."\n\n".$at->format('Y-m-d H:i T')."\n";
+        $text = preg_replace('/\n*<!-- uplift:adoptions -->.*<!-- \/uplift:adoptions -->\n?/s', "\n", $text) ?? $text;
+        file_put_contents($md, rtrim($text)."\n\n".self::adoptionsMarkdown($plan, $result));
+
+        return ['json' => $json, 'markdown' => $md];
+    }
+
+    public static function adoptionsMarkdown(AdoptionPlan $plan, ?AdoptionResult $result): string
+    {
+        $md = "<!-- uplift:adoptions -->\n## New features\n\n";
+        $md .= sprintf("UPLIFT_ADOPT=%s · skipped: %s · %d file(s) scanned\n\n", $plan->policy->adopt, [] === $plan->policy->adoptSkip ? 'none' : implode(', ', $plan->policy->adoptSkip), $plan->files);
+        foreach ($plan->withDecision(...Finding::WITH_CANDIDATES) as $f) {
+            $a = $f->adoption;
+            $md .= sprintf("### %s: %s\n\n", $f->title, $f->decision);
+            $md .= sprintf("`%s` · %s (installed %s) · rewrite: %s · [docs](%s)%s\n\n", $f->id(), $f->requirement(), $f->installed ?? '?',
+                null !== $a->rector() ? 'Rector `'.$a->rector().'`' : 'manual', $a->docs(), $a->experimental() ? ' · **experimental: not confirmed upstream, never applied**' : '');
+            $md .= $f->summary."\n\n".$f->reason.".\n\n| Where | Code | Use |\n|---|---|---|\n";
+            foreach ($f->candidates as $c) {
+                $md .= sprintf("| `%s` | `%s` | %s |\n", self::cell($c->where()), self::cell(str_replace('`', "'", $c->snippet)), self::cell($c->hint));
+            }
+            $md .= "\n";
+            if (null !== ($o = $result?->outcomes[$f->id()] ?? null)) {
+                $md .= sprintf("**Result: %s**%s\n\n", $o['status'], [] !== $o['files'] ? ' ('.implode(', ', array_map(static fn (string $x) => '`'.$x.'`', $o['files'])).')' : '');
+                foreach ($o['steps'] as $name => $s) {
+                    $md .= sprintf("- **%s**: %s%s\n", $name, $s['status'], '' !== $s['command'] ? ' (`'.$s['command'].'`)' : '');
+                    if ('failed' === $s['status'] && '' !== trim($s['output'])) {
+                        $md .= "\n<details><summary>output</summary>\n\n```\n".str_replace('```', "'''", $s['output'])."\n```\n\n</details>\n\n";
+                    }
+                }
+                $md .= "\n";
+            }
+        }
+        $rest = ['none' => 'Nothing found to rewrite', 'later' => 'Later (the site does not run the version yet)', 'skipped' => 'Skipped'];
+        foreach ($rest as $decision => $title) {
+            if ([] !== ($list = $plan->withDecision($decision))) {
+                $md .= "### $title\n\n".implode("\n", array_map(static fn (Finding $f) => sprintf('- %s (`%s`)%s', $f->title, $f->id(), 'none' === $decision ? '' : ': '.$f->reason), $list))."\n\n";
+            }
+        }
+        $notes = array_merge($plan->notes, $result?->notes ?? []);
+        if ([] !== $notes) {
+            $md .= implode("\n", array_map(static fn (string $n) => '- '.$n, $notes))."\n\n";
+        }
+        if (null !== $result?->commit) {
+            $md .= 'Commit: `'.$result->commit."`\n\n";
+        }
+
+        return rtrim($md)."\n<!-- /uplift:adoptions -->\n";
+    }
+
+    /**
+     * Adds (or replaces) one Rehearsal change per adoption with candidates, so each can be
+     * validated or rejected on its own. The change id is stable: uplift-adopt-<id>.
+     *
+     * @return list<string> the change ids
+     */
+    public static function adoptionsToRehearsal(string $file, AdoptionPlan $plan, ?AdoptionResult $result, \DateTimeImmutable $at, ?string $revision = null): array
+    {
+        $findings = $plan->withDecision(...Finding::WITH_CANDIDATES);
+        if ([] === $findings) {
+            return [];
+        }
+        $existing = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
+        $data = \is_array($existing) ? $existing : ['title' => 'Maintenance', 'summary' => '', 'changes' => []];
+        $changes = \is_array($data['changes'] ?? null) ? $data['changes'] : [];
+        $ids = [];
+        foreach ($findings as $f) {
+            $a = $f->adoption;
+            $id = substr('uplift-adopt-'.$f->id(), 0, 64);
+            $outcome = $result?->outcomes[$f->id()] ?? null;
+            $status = $outcome['status'] ?? 'proposed';
+            $tests = $outcome['steps']['tests'] ?? null;
+            $places = implode('', array_map(static fn (Candidate $c) => "\n- ".$c->where().': '.$c->snippet.('' !== $c->hint ? ' -> '.$c->hint : ''), $f->candidates));
+            $detail = $f->summary."\n\n".match ($status) {
+                'applied' => 'Rewritten by Rector, the tests passed.',
+                'untested' => 'Rewritten by Rector, no test command ran.',
+                'reverted' => 'Rewritten by Rector, the tests failed: put back, to do by hand.',
+                'rector_failed' => 'Rector failed: nothing changed, to do by hand.',
+                'unchanged' => 'Rector changed nothing: to do by hand.',
+                default => $a->experimental() ? 'Experimental: the feature is not confirmed upstream yet. Not applied.' : 'Proposed, not applied ('.$f->reason.').',
+            }."\n\nPlaces (".\count($f->candidates).'):'.$places."\n\nNeeds ".$f->requirement().', installed '.($f->installed ?? '?').'. Docs: '.$a->docs();
+            $change = [
+                'id' => $id,
+                'title' => 'New feature: '.$f->title,
+                'detail' => $detail,
+                'replaced' => sprintf('The hand-written version, in %d place(s)', \count($f->candidates)),
+                'check' => \in_array($status, ['applied', 'untested'], true) ? 'Open the pages and run the commands these files serve: they should work as before.' : 'Decide whether to adopt it; nothing changed in the code yet.',
+                'url' => '',
+                'source' => 'uplift',
+                'revision' => $revision ?? $result?->commit ?? '',
+                'tests' => [
+                    'status' => match ($tests['status'] ?? null) { 'passed' => 'passed', 'failed' => 'failed', default => 'not_run' },
+                    'summary' => null !== $tests && '' !== $tests['command'] ? $tests['command'] : 'not applied, no tests',
+                    'output' => mb_substr($tests['output'] ?? '', -4000),
+                ],
+                'proposed_at' => $at->format(\DATE_ATOM),
+            ];
+            $changes = array_values(array_filter($changes, static fn ($c) => !\is_array($c) || ($c['id'] ?? null) !== $id));
+            $changes[] = $change;
+            $ids[] = $id;
+        }
+        $data['changes'] = $changes;
+        if (!is_dir(\dirname($file))) {
+            mkdir(\dirname($file), 0o775, true);
+        }
+        file_put_contents($file, json_encode($data, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
+
+        return $ids;
     }
 
     private static function constraint(Move $m): string

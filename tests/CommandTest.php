@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Acencyril\UpliftBundle\Tests;
 
+use Acencyril\UpliftBundle\Policy;
 use Acencyril\UpliftBundle\Tests\Fixtures\FakeRunner;
 use Acencyril\UpliftBundle\Tests\Fixtures\TestKernel;
 use PHPUnit\Framework\TestCase;
@@ -12,7 +13,7 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 final class CommandTest extends TestCase
 {
-    private const VARS = ['UPLIFT_ENABLED', 'UPLIFT_PHP', 'UPLIFT_SYMFONY', 'UPLIFT_PACKAGES', 'UPLIFT_PHP_MAX', 'UPLIFT_OWN_VENDOR', 'UPLIFT_TEST_COMMAND'];
+    private const VARS = Policy::VARIABLES;
     private string $dir;
     private ?TestKernel $kernel = null;
 
@@ -52,6 +53,7 @@ final class CommandTest extends TestCase
         $app = new Application($this->kernel);
         self::assertTrue($app->has('uplift:plan'));
         self::assertTrue($app->has('uplift:apply'));
+        self::assertTrue($app->has('uplift:adopt'));
         self::assertStringContainsString('Never pushes, never deploys', $app->find('uplift:apply')->getDescription());
     }
 

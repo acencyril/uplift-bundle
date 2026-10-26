@@ -21,7 +21,7 @@ final class RecipeTest extends TestCase
         self::assertSame(['all'], $manifest['bundles']['Acencyril\\UpliftBundle\\UpliftBundle']);
         self::assertSame('%CONFIG_DIR%/', $manifest['copy-from-recipe']['config/']);
         $env = array_filter($manifest['env'], static fn (string $k) => !str_starts_with($k, '#'), \ARRAY_FILTER_USE_KEY);
-        self::assertSame(['UPLIFT_ENABLED', 'UPLIFT_PHP', 'UPLIFT_SYMFONY', 'UPLIFT_PACKAGES', 'UPLIFT_PHP_MAX', 'UPLIFT_OWN_VENDOR', 'UPLIFT_TEST_COMMAND'], array_keys($env));
+        self::assertSame(Policy::VARIABLES, array_keys($env));
         self::assertEquals(new Policy(), Policy::fromEnv($env), 'the recipe writes the safe defaults');
     }
 

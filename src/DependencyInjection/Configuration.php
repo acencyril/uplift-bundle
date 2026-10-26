@@ -23,6 +23,11 @@ final class Configuration implements ConfigurationInterface
                 ->scalarNode('composer')->defaultValue('composer')->info('the composer binary')->end()
                 ->scalarNode('packagist_url')->defaultValue('https://repo.packagist.org')->end()
                 ->scalarNode('php_releases_url')->defaultValue('https://www.php.net')->end()
+                ->arrayNode('adopt_paths')
+                    ->info('where uplift:adopt looks for code that could use a new feature, relative to project_dir')
+                    ->scalarPrototype()->end()
+                    ->defaultValue(['src'])
+                ->end()
             ->end();
 
         return $tree;

@@ -32,6 +32,7 @@ changer le code :
 | `UPLIFT_PHP_MAX` | une branche, ex. `8.1` | aucun | un plafond strict pour PHP (voir plus bas) |
 | `UPLIFT_OWN_VENDOR` | des vendors séparés par des virgules, ou `none` | `acencyril` | les paquets que vous publiez vous-même |
 | `UPLIFT_TEST_COMMAND` | une commande shell | `vendor/bin/phpunit` | ce qui dit que la mise à jour marche ; vide : pas de tests |
+| `UPLIFT_ADOPT`, `UPLIFT_ADOPT_SKIP` | voir [Les nouveautés](#les-nouveautés-pas-seulement-les-dépréciations) | `propose` | |
 
 Un niveau est la plus grande montée faite automatiquement. Au-delà, la montée est
 **proposée** dans le rapport et attend une personne. Avec les défauts, les patchs sont
@@ -115,6 +116,7 @@ php bin/console uplift:apply --branch=upgrade/2026-11 --commit --rehearsal=.rehe
 | `--report-dir=DOSSIER` | où vont les rapports |
 | `--outdated=FICHIER`, `--no-outdated` | un `composer outdated` enregistré, ou aucun |
 | `--no-rector` | sans Rector |
+| `--adopt` | puis cherche les nouveautés des versions installées (voir [Les nouveautés](#les-nouveautés-pas-seulement-les-dépréciations)) |
 
 Code de sortie 1 si composer a échoué, si les tests ont échoué ou si le passage a été
 refusé ; 0 sinon (y compris « désactivé » et « rien à faire »).
@@ -122,6 +124,99 @@ refusé ; 0 sinon (y compris « désactivé » et « rien à faire »).
 La suite vous appartient : pousser la branche depuis la CI, ouvrir une demande de
 fusion, construire un bac à sable, essayer le changement dans votre admin avec
 Rehearsal.
+
+## Les nouveautés, pas seulement les dépréciations
+
+Monter les versions et corriger les dépréciations garde un site en marche. Une version
+apporte aussi des fonctionnalités que le site pourrait maintenant utiliser : du code
+écrit à la main avant qu'elles existent. `uplift:adopt` le trouve.
+
+Une **adoption** est une nouveauté d'une version de paquet (ou de PHP) : son paquet et
+sa première version, un titre et une courte explication (traductions
+`adoption.<id>.title` et `adoption.<id>.summary`, domaine `uplift`, en anglais et en
+français), un lien vers la documentation officielle, un détecteur, et une règle Rector
+quand une règle fait la réécriture (sinon le changement est manuel). Seules les
+adoptions permises par les versions installées sont cherchées (`composer.lock`, et pour
+PHP la version visée par le projet) ; les autres sont listées *plus tard*.
+
+La détection est statique : le code est analysé (nikic/php-parser), jamais chargé ni
+exécuté. Chaque candidat est rapporté en `fichier:ligne`, avec la ligne elle-même et ce
+qu'on peut y mettre.
+
+| Adoption | Demande | Trouve | Réécriture |
+|---|---|---|---|
+| `map-request` | `symfony/http-kernel` >= 6.3 | dans les actions de contrôleur, `json_decode($request->getContent())` et `$request->toArray()` (`#[MapRequestPayload]`), `$request->query->get('page')`, `->getInt('page')`… (`#[MapQueryParameter]`), `$request->query->all()` (`#[MapQueryString]`) | manuelle : la classe cible est à écrire |
+| `as-command` | `symfony/console` >= 5.3 | les commandes qui déclarent `protected static $defaultName` ou `$defaultDescription` (dépréciés depuis 6.1) sans `#[AsCommand]` | Rector `CommandPropertyToAttributeRector` |
+| `readonly-promotion` | PHP >= 8.1 | les propriétés promues et typées du constructeur jamais réécrites : privées, ou dans une classe finale ; pas dans les entités Doctrine | Rector `ReadOnlyPropertyRector` |
+| `lock-attribute` | à confirmer | les contrôleurs et listeners qui appellent `createLock()` puis `acquire()`/`release()` | aucune, **expérimentale** |
+
+`lock-attribute` est un exemple d'adoption pour une fonctionnalité **non confirmée** :
+un attribut de verrou sur les actions de contrôleur (l'idée :
+`#[Lock('invoice-{id}', blocking: true, ttl: 10)]`). Symfony 7.4 n'a pas d'attribut de
+ce genre ; son paquet, sa version et son API sont provisoires jusqu'à ce qu'une version
+le publie. Elle est marquée *expérimentale* et jamais appliquée.
+
+```bash
+php bin/console uplift:adopt                      # la liste, avec les endroits candidats
+php bin/console uplift:adopt --apply              # réécrit ce que la politique autorise
+php bin/console uplift:adopt --apply --rehearsal=.rehearsal/changes.json --locale=fr
+```
+
+Avec `--apply` et `UPLIFT_ADOPT=apply`, chaque adoption qui a une règle Rector est
+faite seule : Rector tourne sur ses fichiers candidats uniquement (une configuration
+écrite pour l'occasion, Rector 1.0 ou plus récent), puis `UPLIFT_TEST_COMMAND`. Si les
+tests échouent (ou Rector), ses fichiers sont remis comme avant, et l'adoption suivante
+est tentée. Le résultat de chacune (`applied`, `reverted`, `rector_failed`,
+`unchanged`, `untested`) va dans le rapport.
+
+| Option | |
+|---|---|
+| `--apply` | réécrit avec Rector, puis les tests décident |
+| `--path=DIR` | ce qui est analysé (répétable ; défaut : le réglage `adopt_paths`, `src`) |
+| `--rehearsal=FICHIER` | un changement [Rehearsal](https://github.com/acencyril/rehearsal-bundle) par adoption (`uplift-adopt-<id>`), à valider ou rejeter un par un |
+| `--report-dir=DIR` | où vont les rapports |
+| `--locale=en\|fr` | la langue des titres et des explications |
+
+Les adoptions sont écrites dans les mêmes `report.json` (clé `adoptions`) et
+`report.md` (section « New features ») qu'`uplift:apply`.
+
+### La politique
+
+| Variable | Valeurs | Défaut | |
+|---|---|---|---|
+| `UPLIFT_ADOPT` | `off`, `propose`, `apply` | `propose` | `off` : pas cherchées ; `propose` : listées seulement ; `apply` : `--apply` réécrit celles qui ont une règle Rector |
+| `UPLIFT_ADOPT_SKIP` | des ids d'adoption, séparés par des virgules | aucun | les adoptions dont vous ne voulez pas, ex. `readonly-promotion` |
+
+Les adoptions manuelles et expérimentales sont seulement proposées.
+
+### Dans le passage mensuel
+
+`uplift:apply --adopt` cherche les nouveautés juste après la montée de versions : un
+seul passage monte les versions, corrige les dépréciations (Rector avec votre
+`rector.php`) et propose les nouveautés. Les adoptions ne sont réécrites qu'après une
+montée dont les tests passent (et avec `UPLIFT_ADOPT=apply`) ; avec `--commit`, elles
+ont leur propre commit. Quand rien n'a bougé, elles sont seulement proposées ; quand la
+montée a échoué, elles ne sont pas cherchées.
+
+### Vos propres adoptions
+
+Implémentez `Acencyril\UpliftBundle\Adopt\Adoption` (une classe par nouveauté). Dans une
+application avec l'autoconfiguration, la classe reçoit le tag `uplift.adoption` toute
+seule ; dans un bundle, taguez le service. Ses textes vont dans
+`translations/uplift.<locale>.*` :
+
+```php
+final class MyAdoption implements Adoption
+{
+    public function id(): string { return 'my-feature'; }
+    public function package(): string { return 'vendor/package'; }
+    public function minVersion(): string { return '2.1'; }
+    public function docs(): string { return 'https://…'; }
+    public function rector(): ?string { return null; }        // ou une classe de règle Rector
+    public function experimental(): bool { return false; }
+    public function detect(SourceFile $file): array { /* $file->ast(), $file->candidate($node, 'indice') */ }
+}
+```
 
 ## Configuration
 
@@ -135,6 +230,8 @@ uplift:
     project_dir: '%kernel.project_dir%'
     packagist_url: 'https://repo.packagist.org'
     php_releases_url: 'https://www.php.net'
+    adopt_paths:                   # où uplift:adopt cherche
+        - 'src'
 ```
 
 Avec Symfony Flex, la recette enregistre le bundle, écrit ce fichier et ajoute les
@@ -175,7 +272,7 @@ jobs:
                 run: |
                     git config user.name "uplift"
                     git config user.email "uplift@users.noreply.github.com"
-                    php bin/console uplift:apply --branch="upgrade/$(date +%Y-%m)" --commit
+                    php bin/console uplift:apply --branch="upgrade/$(date +%Y-%m)" --commit --adopt
             -
                 if: always()
                 run: git push origin HEAD || true

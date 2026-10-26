@@ -16,10 +16,14 @@
         "UPLIFT_PACKAGES": "patch",
         "UPLIFT_PHP_MAX": "",
         "UPLIFT_OWN_VENDOR": "acencyril",
-        "UPLIFT_TEST_COMMAND": "vendor/bin/phpunit"
+        "UPLIFT_TEST_COMMAND": "vendor/bin/phpunit",
+        "#3": "New features of the installed versions (uplift:adopt): off, propose or apply. UPLIFT_ADOPT_SKIP: adoption ids to leave out.",
+        "UPLIFT_ADOPT": "propose",
+        "UPLIFT_ADOPT_SKIP": ""
     },
     "post-install-output": [
-        "  * <fg=blue>Uplift</>: see what can move with <comment>php bin/console uplift:plan</>",
+        "  * <fg=blue>Uplift</>: see what can move with <comment>php bin/console uplift:plan</>,",
+        "    and the new features your versions bring with <comment>php bin/console uplift:adopt</>",
         "  * Set <comment>UPLIFT_ENABLED=1</> where <comment>uplift:apply</> may change composer.json and composer.lock.",
         "    It never pushes or deploys: it leaves a branch and a report (var/uplift/report.md).",
         ""
