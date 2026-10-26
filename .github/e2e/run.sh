@@ -30,6 +30,10 @@ version() { grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' "$WS/$1/CHANGELOG.md" 
 
 case "${1:-}" in
 setup)
+    # Symfony 7.3 is past its end of life: Composer blocks its releases with unfixed advisories.
+    # Allowed while the app is built (it is meant to be behind); Uplift's own composer runs
+    # later keep Composer's default.
+    export COMPOSER_NO_SECURITY_BLOCKING=1
     (cd "$WS" && composer create-project symfony/skeleton:"7.3.*" app --no-interaction --no-progress) >"$LOGS/create.log" 2>&1 \
         || fail "create-project failed" "$(tail -c 4000 "$LOGS/create.log")"
     run docker-off composer config extra.symfony.docker false
@@ -50,6 +54,7 @@ setup)
     run lint-container php bin/console lint:container
     run schema php bin/console doctrine:schema:update --force
     run git-init sh -c 'git init -q && git add -A && git -c user.name=e2e -c user.email=e2e@example.com commit -qm "e2e app" && git log --oneline'
+    unset COMPOSER_NO_SECURITY_BLOCKING
     cp "$APP/composer.json" "$LOGS/before.composer.json"
     cp "$APP/composer.lock" "$LOGS/before.composer.lock"
     run tests-before vendor/bin/phpunit --testsuite app
