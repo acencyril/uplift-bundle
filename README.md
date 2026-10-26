@@ -275,7 +275,8 @@ jobs:
 ## What it does not do
 
 - It moves direct dependencies. Transitive ones follow as far as the direct ones need
-  (`--with-dependencies`).
+  (`--with-dependencies`); for a Symfony move, every locked `symfony/*` package on the
+  old release line moves too, required directly or not.
 - It does not change your runtime: a PHP move changes `composer.json`; your Docker
   image or server must follow. The report says when the steps ran on another PHP.
 - Constraints it cannot carry over (`>=1.0 <2.0`, branches) are left to you; the move

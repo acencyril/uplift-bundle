@@ -6,6 +6,16 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-10-26
+
+### Added
+- An end-to-end workflow (`e2e`): a fresh Symfony 7.3 application with Uplift,
+  Rehearsal and Echo, on the real Packagist and php.net; `uplift:plan`, `uplift:apply`
+  (7.3 -> 7.4, the tests decide), `uplift:adopt` with real Rector, then the Rehearsal
+  admin page and Echo's digest. The Rector rules of `as-command`
+  (`CommandPropertyToAttributeRector`) and `readonly-promotion`
+  (`ReadOnlyPropertyRector`) are checked there: both rewrite the code and the tests pass.
+
 ### Fixed
 - The commands Uplift runs (composer, Rector, the test command) no longer inherit what
   the application's `.env` files loaded into the console process. Run from
@@ -71,5 +81,6 @@ First release.
 - `uplift:apply --adopt`: looks for the new features after the version move, rewrites
   them only after a move whose tests passed, in a commit of their own with `--commit`.
 
-[Unreleased]: https://github.com/acencyril/uplift-bundle/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/acencyril/uplift-bundle/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/acencyril/uplift-bundle/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/acencyril/uplift-bundle/releases/tag/v0.1.0

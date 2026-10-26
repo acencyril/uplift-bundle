@@ -19,7 +19,7 @@ use Acencyril\UpliftBundle\Plan\Plan;
  */
 final class ReportWriter
 {
-    public const VERSION = '0.1.0';
+    public const VERSION = '0.1.1';
 
     /**
      * Command output is not always valid UTF-8 (a test printing binary, a tail cut inside a

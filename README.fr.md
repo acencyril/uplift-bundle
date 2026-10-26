@@ -281,7 +281,9 @@ jobs:
 ## Ce qu'il ne fait pas
 
 - Il fait monter les dépendances directes. Les dépendances indirectes suivent autant
-  que les directes en ont besoin (`--with-dependencies`).
+  que les directes en ont besoin (`--with-dependencies`) ; pour un passage de Symfony,
+  tous les paquets `symfony/*` verrouillés sur l'ancienne ligne suivent aussi, requis
+  directement ou non.
 - Il ne change pas votre environnement d'exécution : une montée de PHP change
   `composer.json` ; votre image Docker ou votre serveur doit suivre. Le rapport le dit
   quand les étapes ont tourné sur un autre PHP.

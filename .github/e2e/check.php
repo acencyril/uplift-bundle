@@ -144,7 +144,8 @@ switch ($stage) {
         fact('After uplift:apply - steps', implode("\n", $steps)."\nNotes: ".implode(' | ', array_merge($report['notes'] ?? [], $result['notes'] ?? [])));
         fact('After uplift:apply - Rector (project rector.php)', tail($result['steps']['rector']['output'] ?? '(no output)', 3000)."\n\ngit diff --stat:\n".(string) @file_get_contents("$logs/rector-diff.log"));
         [$summary, $dep] = phpunitSummary($result['steps']['tests']['output'] ?? '');
-        fact('After uplift:apply - tests', 'In uplift:apply: '.$summary."\nPHPUnit deprecations counted in src: ".$dep);
+        preg_match_all('/^\d+\) \S+\n(.+)$/m', $result['steps']['tests']['output'] ?? '', $m);
+        fact('After uplift:apply - tests', 'In uplift:apply: '.$summary."\nPHPUnit deprecations counted in src: ".$dep.([] !== $m[1] ? "\n- ".implode("\n- ", array_unique($m[1])) : ''));
         break;
 
     case 'after':
