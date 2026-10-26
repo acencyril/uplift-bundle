@@ -1,0 +1,19 @@
+security:
+    password_hashers:
+        Symfony\Component\Security\Core\User\InMemoryUser: plaintext
+    providers:
+        users:
+            memory:
+                users:
+                    admin: { password: 'e2e-admin', roles: ['ROLE_ADMIN'] }
+    firewalls:
+        dev:
+            pattern: ^/(_profiler|_wdt|css|images|js)/
+            security: false
+        main:
+            lazy: true
+            provider: users
+            http_basic:
+                realm: e2e
+    access_control:
+        - { path: ^/[a-z]{2}/admin, roles: ROLE_ADMIN }

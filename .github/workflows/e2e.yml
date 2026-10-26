@@ -1,0 +1,50 @@
+# End to end, with the real network: a fresh Symfony 7.3 app (one minor behind), Uplift,
+# Rehearsal and Echo installed from their repos (Composer path repositories), then
+# uplift:plan, uplift:apply (Symfony 7.3 -> 7.4, the tests decide), uplift:adopt,
+# the Rehearsal admin page (sign in, validate the change) and Echo's digest.
+# Failures and facts are annotations (::error:: / ::notice::): readable from the check run.
+name: e2e
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      COMPOSER_NO_INTERACTION: '1'
+      UPLIFT_ENABLED: '1'
+      UPLIFT_SYMFONY: minor
+      UPLIFT_PACKAGES: minor
+      UPLIFT_PHP: 'off'
+      UPLIFT_TEST_COMMAND: vendor/bin/phpunit --testsuite app
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { path: uplift-bundle }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { repository: acencyril/rehearsal-bundle, path: rehearsal-bundle }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { repository: acencyril/echo-bundle, path: echo-bundle }
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with: { php-version: '8.3', coverage: none, tools: composer, extensions: 'pdo_sqlite, intl' }
+      - id: setup
+        name: Symfony 7.3 app with the three bundles
+        run: bash uplift-bundle/.github/e2e/run.sh setup
+      - id: plan
+        name: uplift:plan
+        run: bash uplift-bundle/.github/e2e/run.sh plan
+      - id: apply
+        name: uplift:apply
+        run: bash uplift-bundle/.github/e2e/run.sh apply
+      - name: uplift:adopt
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bash uplift-bundle/.github/e2e/run.sh adopt
+      - name: Rehearsal
+        if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
+        run: bash uplift-bundle/.github/e2e/run.sh rehearsal
+      - name: Echo
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bash uplift-bundle/.github/e2e/run.sh echo

@@ -1,0 +1,3 @@
+# Rehearsal's forms need CSRF tokens.
+framework:
+    csrf_protection: true
