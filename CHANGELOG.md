@@ -6,6 +6,11 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-10-26
+
+### Fixed
+- Reports state the right Uplift version (0.2.0 still wrote 0.1.1).
+
 ## [0.2.0] — 2026-10-26
 
 ### Changed
