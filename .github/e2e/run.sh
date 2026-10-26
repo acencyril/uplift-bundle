@@ -50,11 +50,13 @@ setup)
     run docker-off composer config extra.symfony.docker false
     run require composer require --no-progress symfony/twig-bundle symfony/security-bundle symfony/mailer symfony/translation symfony/orm-pack
     run require-dev composer require --dev --no-progress phpunit/phpunit:^11.5 symfony/browser-kit symfony/css-selector rector/rector
+    bundles=()
     for b in uplift rehearsal echo; do
         v=$(version "$b-bundle")
         run "repo-$b" composer config "repositories.$b" "{\"type\":\"path\",\"url\":\"../$b-bundle\",\"options\":{\"versions\":{\"acencyril/$b-bundle\":\"$v\"}}}"
+        bundles+=("acencyril/$b-bundle:^$v") # from the checked-out version, whatever its CHANGELOG says
     done
-    run require-bundles composer require --no-progress acencyril/uplift-bundle:^0.1 acencyril/rehearsal-bundle:^0.1 acencyril/echo-bundle:^0.1
+    run require-bundles composer require --no-progress "${bundles[@]}"
     # the configuration the bundles' Flex recipes would write
     cp "$WS/uplift-bundle/recipe/config/packages/uplift.yaml" "$WS/rehearsal-bundle/recipe/config/packages/rehearsal.yaml" \
        "$WS/echo-bundle/recipe/config/packages/echo.yaml" "$APP/config/packages/"
