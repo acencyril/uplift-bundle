@@ -6,6 +6,15 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-29
+
+### Added
+- `UPLIFT_SKIP`: releases never to move to (`package@version`, `symfony@…` for the
+  framework), e.g. one that was shipped and rolled back. The release below is taken
+  instead when the level allows it; a newer one is tried again. Listed in the report's
+  policy and in the recipe.
+- README: shipping without a person (Rehearsal's `validation: auto`) and rolling back.
+
 ## [0.3.1] — 2026-10-26
 
 ### Changed

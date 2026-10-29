@@ -18,6 +18,9 @@ namespace Acencyril\UpliftBundle;
  *   UPLIFT_ADOPT_SKIP    adoption ids never to propose, comma-separated (default: none)
  *   UPLIFT_ADOPT_OPT_IN  opt-in adoption ids to look for, comma-separated (default: none),
  *                        e.g. readonly-promotion (experimental, off by default)
+ *   UPLIFT_SKIP          releases never to move to, comma-separated package@version, e.g.
+ *                        symfony@7.4.18,twig/twig@3.21.1 ("symfony" for the framework's packages):
+ *                        a release that was shipped and rolled back. A newer one is tried again.
  *
  * A move above its level is proposed in the report, never applied.
  *
@@ -31,12 +34,13 @@ final class Policy
 {
     public const OWN_VENDOR_FLOOR = Level::Minor;
     public const ADOPT = ['off', 'propose', 'apply'];
-    public const VARIABLES = ['UPLIFT_ENABLED', 'UPLIFT_PHP', 'UPLIFT_SYMFONY', 'UPLIFT_PACKAGES', 'UPLIFT_PHP_MAX', 'UPLIFT_OWN_VENDOR', 'UPLIFT_TEST_COMMAND', 'UPLIFT_ADOPT', 'UPLIFT_ADOPT_SKIP', 'UPLIFT_ADOPT_OPT_IN'];
+    public const VARIABLES = ['UPLIFT_ENABLED', 'UPLIFT_PHP', 'UPLIFT_SYMFONY', 'UPLIFT_PACKAGES', 'UPLIFT_PHP_MAX', 'UPLIFT_OWN_VENDOR', 'UPLIFT_TEST_COMMAND', 'UPLIFT_ADOPT', 'UPLIFT_ADOPT_SKIP', 'UPLIFT_ADOPT_OPT_IN', 'UPLIFT_SKIP'];
 
     /**
      * @param list<string> $ownVendors
      * @param list<string> $adoptSkip
      * @param list<string> $adoptOptIn
+     * @param list<string> $skip       "package@version", lower case, "symfony" for the framework
      */
     public function __construct(
         public readonly bool $enabled = false,
@@ -49,6 +53,7 @@ final class Policy
         public readonly string $adopt = 'propose',
         public readonly array $adoptSkip = [],
         public readonly array $adoptOptIn = [],
+        public readonly array $skip = [],
     ) {
         if (!\in_array($adopt, self::ADOPT, true)) {
             throw new \InvalidArgumentException(sprintf('UPLIFT_ADOPT must be off, propose or apply, "%s" given.', $adopt));
@@ -71,8 +76,15 @@ final class Policy
         $max = $get('UPLIFT_PHP_MAX');
         $test = $get('UPLIFT_TEST_COMMAND');
         $adopt = strtolower((string) $get('UPLIFT_ADOPT'));
-        $skip = array_values(array_filter(array_map('trim', explode(',', strtolower((string) $get('UPLIFT_ADOPT_SKIP'))))));
+        $adoptSkip = array_values(array_filter(array_map('trim', explode(',', strtolower((string) $get('UPLIFT_ADOPT_SKIP'))))));
         $optIn = array_values(array_filter(array_map('trim', explode(',', strtolower((string) $get('UPLIFT_ADOPT_OPT_IN'))))));
+        $skip = [];
+        foreach (array_filter(array_map('trim', explode(',', strtolower((string) $get('UPLIFT_SKIP'))))) as $item) {
+            if (!preg_match('#^([a-z0-9_.-]+(?:/[a-z0-9_.*-]+)?)@v?(\d+(?:\.\d+){0,3})$#', $item, $m)) {
+                throw new \InvalidArgumentException(sprintf('UPLIFT_SKIP takes package@version items, "%s" given.', $item));
+            }
+            $skip[] = ('symfony/*' === $m[1] ? 'symfony' : $m[1]).'@'.$m[2];
+        }
 
         return new self(
             \in_array($enabled, ['1', 'true'], true),
@@ -83,8 +95,9 @@ final class Policy
             $own,
             null === $test ? 'vendor/bin/phpunit' : $test,
             '' === $adopt ? 'propose' : $adopt,
-            $skip,
+            $adoptSkip,
             $optIn,
+            array_values(array_unique($skip)),
         );
     }
 
@@ -132,6 +145,13 @@ final class Policy
             'adopt' => $this->adopt,
             'adopt_skip' => $this->adoptSkip,
             'adopt_opt_in' => $this->adoptOptIn,
+            'skip' => $this->skip,
         ];
+    }
+
+    /** Was this release shipped once and rolled back (UPLIFT_SKIP)? $package "symfony" for the framework. */
+    public function skips(string $package, string $version): bool
+    {
+        return \in_array(strtolower($package).'@'.ltrim($version, 'v'), $this->skip, true);
     }
 }

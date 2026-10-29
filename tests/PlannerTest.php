@@ -88,6 +88,24 @@ final class PlannerTest extends TestCase
         self::$tmp = [];
     }
 
+    public function testARolledBackReleaseIsSkippedAndTheOneBelowTaken(): void
+    {
+        $plan = self::steps('7.4.1', env: ['UPLIFT_SYMFONY' => 'patch', 'UPLIFT_PACKAGES' => 'patch', 'UPLIFT_SKIP' => 'symfony@7.4.8, vendor/lib@2.3.4']);
+        self::assertSame([], array_filter($plan->moves, static fn (Move $m) => 'symfony/*' === $m->package && 'apply' === $m->decision), 'only 7.4.8 above 7.4.1 in the patch line, and it is skipped');
+        self::assertNotContains('vendor/lib apply', array_keys(self::table($plan)));
+        self::assertContains('Symfony 7.4.8 is skipped (UPLIFT_SKIP: it was rolled back).', $plan->notes);
+
+        $plan = self::steps('7.4.1', env: ['UPLIFT_SYMFONY' => 'patch', 'UPLIFT_SKIP' => 'symfony@7.4.5']);
+        self::assertSame('7.4.8', (string) self::move($plan, 'symfony/*', 'apply')->to, 'another release is not skipped');
+    }
+
+    public function testUpliftSkipIsChecked(): void
+    {
+        self::assertSame(['symfony@7.4.18', 'twig/twig@3.21.1'], Policy::fromEnv(['UPLIFT_SKIP' => 'symfony/*@v7.4.18,Twig/Twig@3.21.1'])->skip);
+        $this->expectException(\InvalidArgumentException::class);
+        Policy::fromEnv(['UPLIFT_SKIP' => 'symfony 7.4']);
+    }
+
     public function testSymfonyGoesThroughTheLastMinorOfItsMajorFirst(): void
     {
         $plan = self::steps('6.2.14');

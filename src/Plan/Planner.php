@@ -113,7 +113,7 @@ final class Planner
             if (null === $installed) {
                 $notes[] = sprintf('%s is not in composer.lock: Symfony is left alone.', $lead);
             } else {
-                $candidates = $this->releases($lead, $outdated, $notes);
+                $candidates = self::withoutSkipped($this->releases($lead, $outdated, $notes), 'symfony', $policy, $notes);
                 $problem = static fn (Release $r): ?string => $phpProblem($r->php)
                     ?? (null === ConstraintRewriter::rewrite($constraint, $r->version) ? sprintf('the constraint "%s" cannot be widened automatically', $constraint) : null);
                 foreach (self::choose($installed, $candidates, $policy->symfony, 'symfony', $problem) as [$release, $level, $decision, $reason, $later]) {
@@ -143,7 +143,7 @@ final class Planner
                 $notes[] = sprintf('%s is abandoned%s.', $name, \is_string($abandoned) && '' !== $abandoned ? ', use '.$abandoned.' instead' : '');
             }
             $category = $policy->isOwn($name) ? 'own' : 'other';
-            $candidates = $this->releases($name, $outdated, $notes);
+            $candidates = self::withoutSkipped($this->releases($name, $outdated, $notes), $name, $policy, $notes);
             $problem = static fn (Release $r): ?string => $phpProblem($r->php)
                 ?? (null === ConstraintRewriter::rewrite($constraint, $r->version) ? sprintf('the constraint "%s" cannot be widened automatically', $constraint) : null);
             foreach (self::choose($installed, $candidates, $policy->levelFor($category), $category, $problem) as [$release, $level, $decision, $reason, $later]) {
@@ -187,6 +187,32 @@ final class Planner
      *
      * @return list<Release>
      */
+    /**
+     * The releases UPLIFT_SKIP names are left out (shipped once, rolled back): the next one
+     * below is chosen instead when the level allows it, a newer one later.
+     *
+     * @param list<Release> $releases
+     * @param list<string>  $notes
+     *
+     * @return list<Release>
+     */
+    private static function withoutSkipped(array $releases, string $package, Policy $policy, array &$notes): array
+    {
+        if ([] === $policy->skip) {
+            return $releases;
+        }
+        $kept = [];
+        foreach ($releases as $r) {
+            if ($policy->skips($package, (string) $r->version)) {
+                $notes[] = sprintf('%s %s is skipped (UPLIFT_SKIP: it was rolled back).', 'symfony' === $package ? 'Symfony' : $package, $r->version);
+                continue;
+            }
+            $kept[] = $r;
+        }
+
+        return $kept;
+    }
+
     private function releases(string $name, OutdatedReport $outdated, array &$notes): array
     {
         $byVersion = [];

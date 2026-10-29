@@ -21,7 +21,9 @@
         "UPLIFT_ADOPT": "propose",
         "UPLIFT_ADOPT_SKIP": "",
         "#4": "UPLIFT_ADOPT_OPT_IN: adoptions off by default to look for, e.g. readonly-promotion (experimental: can break reflection-based hydration).",
-        "UPLIFT_ADOPT_OPT_IN": ""
+        "UPLIFT_ADOPT_OPT_IN": "",
+        "#5": "UPLIFT_SKIP: releases never to move to (package@version, comma-separated), e.g. one that was shipped and rolled back.",
+        "UPLIFT_SKIP": ""
     },
     "post-install-output": [
         "  * <fg=blue>Uplift</>: see what can move with <comment>php bin/console uplift:plan</>,",

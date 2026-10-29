@@ -51,6 +51,7 @@ a code change:
 | `UPLIFT_OWN_VENDOR` | vendors, comma-separated, or `none` | `acencyril` | packages you publish yourself |
 | `UPLIFT_TEST_COMMAND` | a shell command | `vendor/bin/phpunit` | what says the upgrade works; empty: no tests |
 | `UPLIFT_ADOPT`, `UPLIFT_ADOPT_SKIP`, `UPLIFT_ADOPT_OPT_IN` | see [New features](#new-features-not-just-deprecations) | `propose` | |
+| `UPLIFT_SKIP` | `package@version`, comma-separated (`symfony@7.4.18` for the framework) | none | releases never to move to: one that was shipped and [rolled back](#shipping-without-a-person-and-rolling-back) |
 
 A level is the largest move done automatically. Anything larger is **proposed** in the
 report and waits for a person. With the defaults, patches are applied and every minor
@@ -343,6 +344,28 @@ jobs:
 The branch exists only when something moved. A branch of the same name already on the
 remote (a second run in the month) makes the push fail, on purpose: merge or delete it
 first.
+
+## Shipping without a person, and rolling back
+
+Who validates is a choice per site, made in Rehearsal (`acencyril/rehearsal-bundle`):
+
+```yaml
+rehearsal:
+    validation: auto      # an upgrade whose tests passed ships by itself
+    # validation: manual  # human validation: nothing ships until someone clicks Validate
+```
+
+Uplift still never pushes nor deploys; the job that runs it does, and only when the
+tests passed (never `untested`). A shipping job that follows the site's choice:
+
+1. `uplift:apply` on a branch from the deployed one; tests passed and `validation: auto`:
+   merge it fast-forward into the deployed branch and deploy as usual;
+2. the deploy checks the site answers; if it does not, it goes back to the previous
+   release (images and commit), reverts the upgrade commit on the deployed branch, and
+   adds each moved `package@version` to `UPLIFT_SKIP`;
+3. the next run skips those releases and takes the next one when it comes out.
+
+So a bad release costs one failed deploy, once, and the site stays on what worked.
 
 ## Older projects
 
