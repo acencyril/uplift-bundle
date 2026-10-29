@@ -23,7 +23,9 @@
         "#4": "UPLIFT_ADOPT_OPT_IN: adoptions off by default to look for, e.g. readonly-promotion (experimental: can break reflection-based hydration).",
         "UPLIFT_ADOPT_OPT_IN": "",
         "#5": "UPLIFT_SKIP: releases never to move to (package@version, comma-separated), e.g. one that was shipped and rolled back.",
-        "UPLIFT_SKIP": ""
+        "UPLIFT_SKIP": "",
+        "#6": "UPLIFT_HUMAN_VALIDATION: 1, an upgrade waits for a person (pull request, Rehearsal); 0, the job merges it, deploys and rolls back if the site breaks.",
+        "UPLIFT_HUMAN_VALIDATION": "1"
     },
     "post-install-output": [
         "  * <fg=blue>Uplift</>: see what can move with <comment>php bin/console uplift:plan</>,",

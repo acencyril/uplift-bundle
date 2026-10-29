@@ -18,6 +18,9 @@ namespace Acencyril\UpliftBundle;
  *   UPLIFT_ADOPT_SKIP    adoption ids never to propose, comma-separated (default: none)
  *   UPLIFT_ADOPT_OPT_IN  opt-in adoption ids to look for, comma-separated (default: none),
  *                        e.g. readonly-promotion (experimental, off by default)
+ *   UPLIFT_HUMAN_VALIDATION  1: an upgrade whose tests passed waits for a person (a pull
+ *                        request, Rehearsal's Validate); 0: the job that runs Uplift merges it
+ *                        and deploys, and rolls back if the site breaks (default 1)
  *   UPLIFT_SKIP          releases never to move to, comma-separated package@version, e.g.
  *                        symfony@7.4.18,twig/twig@3.21.1 ("symfony" for the framework's packages):
  *                        a release that was shipped and rolled back. A newer one is tried again.
@@ -34,7 +37,7 @@ final class Policy
 {
     public const OWN_VENDOR_FLOOR = Level::Minor;
     public const ADOPT = ['off', 'propose', 'apply'];
-    public const VARIABLES = ['UPLIFT_ENABLED', 'UPLIFT_PHP', 'UPLIFT_SYMFONY', 'UPLIFT_PACKAGES', 'UPLIFT_PHP_MAX', 'UPLIFT_OWN_VENDOR', 'UPLIFT_TEST_COMMAND', 'UPLIFT_ADOPT', 'UPLIFT_ADOPT_SKIP', 'UPLIFT_ADOPT_OPT_IN', 'UPLIFT_SKIP'];
+    public const VARIABLES = ['UPLIFT_ENABLED', 'UPLIFT_PHP', 'UPLIFT_SYMFONY', 'UPLIFT_PACKAGES', 'UPLIFT_PHP_MAX', 'UPLIFT_OWN_VENDOR', 'UPLIFT_TEST_COMMAND', 'UPLIFT_ADOPT', 'UPLIFT_ADOPT_SKIP', 'UPLIFT_ADOPT_OPT_IN', 'UPLIFT_SKIP', 'UPLIFT_HUMAN_VALIDATION'];
 
     /**
      * @param list<string> $ownVendors
@@ -54,6 +57,7 @@ final class Policy
         public readonly array $adoptSkip = [],
         public readonly array $adoptOptIn = [],
         public readonly array $skip = [],
+        public readonly bool $humanValidation = true,
     ) {
         if (!\in_array($adopt, self::ADOPT, true)) {
             throw new \InvalidArgumentException(sprintf('UPLIFT_ADOPT must be off, propose or apply, "%s" given.', $adopt));
@@ -70,6 +74,10 @@ final class Policy
         $enabled = strtolower((string) $get('UPLIFT_ENABLED'));
         if (!\in_array($enabled, ['', '0', '1', 'true', 'false'], true)) {
             throw new \InvalidArgumentException(sprintf('UPLIFT_ENABLED must be 0 or 1, "%s" given.', $enabled));
+        }
+        $human = strtolower((string) $get('UPLIFT_HUMAN_VALIDATION'));
+        if (!\in_array($human, ['', '0', '1', 'true', 'false'], true)) {
+            throw new \InvalidArgumentException(sprintf('UPLIFT_HUMAN_VALIDATION must be 0 or 1, "%s" given.', $human));
         }
         $own = $get('UPLIFT_OWN_VENDOR');
         $own = null === $own ? ['acencyril'] : (\in_array(strtolower($own), ['', 'none', 'off'], true) ? [] : array_values(array_filter(array_map('trim', explode(',', strtolower($own))))));
@@ -98,6 +106,7 @@ final class Policy
             $adoptSkip,
             $optIn,
             array_values(array_unique($skip)),
+            !\in_array($human, ['0', 'false'], true),
         );
     }
 
@@ -146,6 +155,7 @@ final class Policy
             'adopt_skip' => $this->adoptSkip,
             'adopt_opt_in' => $this->adoptOptIn,
             'skip' => $this->skip,
+            'human_validation' => $this->humanValidation,
         ];
     }
 

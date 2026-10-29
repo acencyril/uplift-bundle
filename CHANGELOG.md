@@ -6,6 +6,13 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-29
+
+### Added
+- `UPLIFT_HUMAN_VALIDATION` (default `1`): `0` lets the job that runs Uplift merge an
+  upgrade whose tests passed and deploy it, rolling back if the site breaks; `1` keeps
+  it waiting for a person. In the report's policy (`human_validation`) and the recipe.
+
 ## [0.4.0] — 2026-10-29
 
 ### Added

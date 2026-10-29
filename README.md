@@ -51,6 +51,7 @@ a code change:
 | `UPLIFT_OWN_VENDOR` | vendors, comma-separated, or `none` | `acencyril` | packages you publish yourself |
 | `UPLIFT_TEST_COMMAND` | a shell command | `vendor/bin/phpunit` | what says the upgrade works; empty: no tests |
 | `UPLIFT_ADOPT`, `UPLIFT_ADOPT_SKIP`, `UPLIFT_ADOPT_OPT_IN` | see [New features](#new-features-not-just-deprecations) | `propose` | |
+| `UPLIFT_HUMAN_VALIDATION` | `0`, `1` | `1` | `1`: an upgrade whose tests passed waits for a person (pull request or Rehearsal); `0`: it is merged and deployed, and [rolled back](#shipping-without-a-person-and-rolling-back) if the site breaks |
 | `UPLIFT_SKIP` | `package@version`, comma-separated (`symfony@7.4.18` for the framework) | none | releases never to move to: one that was shipped and [rolled back](#shipping-without-a-person-and-rolling-back) |
 
 A level is the largest move done automatically. Anything larger is **proposed** in the
@@ -347,18 +348,26 @@ first.
 
 ## Shipping without a person, and rolling back
 
-Who validates is a choice per site, made in Rehearsal (`acencyril/rehearsal-bundle`):
+Who validates is a choice per site: `UPLIFT_HUMAN_VALIDATION`. What may move without
+a person is the scope above, per family: `UPLIFT_PHP`, `UPLIFT_SYMFONY`,
+`UPLIFT_OWN_VENDOR` (your bundles) and `UPLIFT_PACKAGES` (external libraries). For
+example, patches everywhere but PHP, merged without anyone:
 
-```yaml
-rehearsal:
-    validation: auto      # an upgrade whose tests passed ships by itself
-    # validation: manual  # human validation: nothing ships until someone clicks Validate
+```dotenv
+UPLIFT_HUMAN_VALIDATION=0
+UPLIFT_PHP=off
+UPLIFT_SYMFONY=patch
+UPLIFT_PACKAGES=patch
 ```
+
+`UPLIFT_HUMAN_VALIDATION=1` (the default): the branch is pushed and waits, as a pull
+request or a Rehearsal change (`acencyril/rehearsal-bundle`), until someone validates.
+The policy is in `report.json` (`policy.human_validation`) for the job to read.
 
 Uplift still never pushes nor deploys; the job that runs it does, and only when the
 tests passed (never `untested`). A shipping job that follows the site's choice:
 
-1. `uplift:apply` on a branch from the deployed one; tests passed and `validation: auto`:
+1. `uplift:apply` on a branch from the deployed one; tests passed and `human_validation` false:
    merge it fast-forward into the deployed branch and deploy as usual;
 2. the deploy checks the site answers; if it does not, it goes back to the previous
    release (images and commit), reverts the upgrade commit on the deployed branch, and

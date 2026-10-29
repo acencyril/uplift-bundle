@@ -99,6 +99,15 @@ final class PlannerTest extends TestCase
         self::assertSame('7.4.8', (string) self::move($plan, 'symfony/*', 'apply')->to, 'another release is not skipped');
     }
 
+    public function testHumanValidationIsOnUnlessTurnedOff(): void
+    {
+        self::assertTrue(Policy::fromEnv([])->humanValidation);
+        self::assertFalse(Policy::fromEnv(['UPLIFT_HUMAN_VALIDATION' => '0'])->humanValidation);
+        self::assertFalse(Policy::fromEnv(['UPLIFT_HUMAN_VALIDATION' => 'false'])->toArray()['human_validation']);
+        $this->expectException(\InvalidArgumentException::class);
+        Policy::fromEnv(['UPLIFT_HUMAN_VALIDATION' => 'yes']);
+    }
+
     public function testUpliftSkipIsChecked(): void
     {
         self::assertSame(['symfony@7.4.18', 'twig/twig@3.21.1'], Policy::fromEnv(['UPLIFT_SKIP' => 'symfony/*@v7.4.18,Twig/Twig@3.21.1'])->skip);
