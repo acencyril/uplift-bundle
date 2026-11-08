@@ -6,6 +6,8 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-08
+
 ### Changed
 - **No own vendor by default** (behaviour change): `UPLIFT_OWN_VENDOR` used to default to
   `acencyril`, the author's vendor, so in any project those packages moved up to a minor on
@@ -186,7 +188,8 @@ First release.
 - `uplift:apply --adopt`: looks for the new features after the version move, rewrites
   them only after a move whose tests passed, in a commit of their own with `--commit`.
 
-[Unreleased]: https://github.com/acencyril/uplift-bundle/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/acencyril/uplift-bundle/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/acencyril/uplift-bundle/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/acencyril/uplift-bundle/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/acencyril/uplift-bundle/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/acencyril/uplift-bundle/compare/v0.3.0...v0.3.1
