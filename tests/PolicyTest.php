@@ -18,7 +18,7 @@ final class PolicyTest extends TestCase
         self::assertSame(Level::Patch, $p->symfony);
         self::assertSame(Level::Patch, $p->packages);
         self::assertNull($p->phpMax);
-        self::assertSame(['acencyril'], $p->ownVendors);
+        self::assertSame([], $p->ownVendors, 'no own vendor unless the project names one');
         self::assertSame('vendor/bin/phpunit', $p->testCommand);
         self::assertSame('propose', $p->adopt);
         self::assertSame([], $p->adoptSkip);

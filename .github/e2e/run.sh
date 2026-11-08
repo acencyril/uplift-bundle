@@ -58,7 +58,7 @@ setup)
     done
     run require-bundles composer require --no-progress "${bundles[@]}"
     # the configuration the bundles' Flex recipes would write
-    cp "$WS/uplift-bundle/recipe/config/packages/uplift.yaml" "$WS/rehearsal-bundle/recipe/config/packages/rehearsal.yaml" \
+    cp "$WS/uplift-bundle/recipe-contrib/acencyril/uplift-bundle/0.6/config/packages/uplift.yaml" "$WS/rehearsal-bundle/recipe/config/packages/rehearsal.yaml" \
        "$WS/echo-bundle/recipe/config/packages/echo.yaml" "$APP/config/packages/"
     mkdir -p "$APP/config/routes" && cp "$WS/rehearsal-bundle/recipe/config/routes/rehearsal.yaml" "$APP/config/routes/"
     php "$E2E/setup.php" "$APP" "$WS" || fail "setup.php failed" "see the log"

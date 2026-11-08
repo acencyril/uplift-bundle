@@ -12,7 +12,7 @@ use Symfony\Component\Yaml\Yaml;
 
 final class RecipeTest extends TestCase
 {
-    private const DIR = __DIR__.'/../recipe';
+    private const DIR = __DIR__.'/../recipe-contrib/acencyril/uplift-bundle/0.6';
 
     public function testTheManifestRegistersTheBundleAndThePolicy(): void
     {

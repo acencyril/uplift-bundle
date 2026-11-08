@@ -12,7 +12,7 @@ namespace Acencyril\UpliftBundle;
  *   UPLIFT_SYMFONY       off|patch|minor|major, for the symfony/* packages that follow the framework (default patch)
  *   UPLIFT_PACKAGES      off|patch|minor|major, for every other package (default patch)
  *   UPLIFT_PHP_MAX       a PHP branch never to go above, e.g. 8.1 (default: none)
- *   UPLIFT_OWN_VENDOR    vendors you publish yourself, comma-separated (default acencyril; "none" for none)
+ *   UPLIFT_OWN_VENDOR    vendors you publish yourself, comma-separated (default: none)
  *   UPLIFT_TEST_COMMAND  the command that says the upgrade works (default vendor/bin/phpunit)
  *   UPLIFT_ADOPT         off|propose|apply, for the new features of the installed versions (default propose)
  *   UPLIFT_ADOPT_SKIP    adoption ids never to propose, comma-separated (default: none)
@@ -51,7 +51,7 @@ final class Policy
         public readonly Level $symfony = Level::Patch,
         public readonly Level $packages = Level::Patch,
         public readonly ?string $phpMax = null,
-        public readonly array $ownVendors = ['acencyril'],
+        public readonly array $ownVendors = [],
         public readonly string $testCommand = 'vendor/bin/phpunit',
         public readonly string $adopt = 'propose',
         public readonly array $adoptSkip = [],
@@ -79,8 +79,8 @@ final class Policy
         if (!\in_array($human, ['', '0', '1', 'true', 'false'], true)) {
             throw new \InvalidArgumentException(sprintf('UPLIFT_HUMAN_VALIDATION must be 0 or 1, "%s" given.', $human));
         }
-        $own = $get('UPLIFT_OWN_VENDOR');
-        $own = null === $own ? ['acencyril'] : (\in_array(strtolower($own), ['', 'none', 'off'], true) ? [] : array_values(array_filter(array_map('trim', explode(',', strtolower($own))))));
+        $own = strtolower((string) $get('UPLIFT_OWN_VENDOR'));
+        $own = \in_array($own, ['', 'none', 'off'], true) ? [] : array_values(array_filter(array_map('trim', explode(',', $own))));
         $max = $get('UPLIFT_PHP_MAX');
         $test = $get('UPLIFT_TEST_COMMAND');
         $adopt = strtolower((string) $get('UPLIFT_ADOPT'));

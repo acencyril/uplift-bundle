@@ -36,7 +36,7 @@ final class ApplierTest extends TestCase
         copy(__DIR__.'/Fixtures/'.$fixture.'/composer.json', $this->dir.'/composer.json');
         copy(__DIR__.'/Fixtures/'.$fixture.'/composer.lock', $this->dir.'/composer.lock');
         $project = new ComposerProject($this->dir);
-        $plan = (new Planner(FixedReleaseSource::standard(), new FixedPhpSource()))->plan($project, Policy::fromEnv($env), null, '8.3.12');
+        $plan = (new Planner(FixedReleaseSource::standard(), new FixedPhpSource()))->plan($project, Policy::fromEnv($env + ['UPLIFT_OWN_VENDOR' => 'acencyril']), null, '8.3.12');
 
         return (new Applier($runner))->apply($project, $plan, $options);
     }

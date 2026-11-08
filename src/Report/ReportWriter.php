@@ -21,7 +21,7 @@ use Acencyril\UpliftBundle\Plan\Plan;
  */
 final class ReportWriter
 {
-    public const VERSION = '0.3.1';
+    public const VERSION = '0.6.0';
 
     /**
      * Command output is not always valid UTF-8 (a test printing binary, a tail cut inside a

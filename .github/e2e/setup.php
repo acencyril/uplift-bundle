@@ -7,7 +7,10 @@
 $bundles = require $app.'/config/bundles.php';
 $env = (string) file_get_contents($app.'/.env');
 foreach (['uplift', 'rehearsal', 'echo'] as $b) {
-    $manifest = json_decode((string) file_get_contents("$ws/$b-bundle/recipe/manifest.json"), true);
+    // Uplift keeps its recipe in the symfony/recipes-contrib layout; the others in recipe/
+    $dirs = glob("$ws/$b-bundle/recipe-contrib/acencyril/$b-bundle/*", \GLOB_ONLYDIR) ?: ["$ws/$b-bundle/recipe"];
+    usort($dirs, static fn (string $x, string $y) => version_compare(basename($x), basename($y)));
+    $manifest = json_decode((string) file_get_contents(end($dirs).'/manifest.json'), true);
     foreach (array_keys($manifest['bundles'] ?? []) as $class) {
         $bundles[$class] ??= ['all' => true];
     }

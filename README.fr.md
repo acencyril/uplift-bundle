@@ -6,8 +6,9 @@ Uplift regarde ce qui peut bouger (PHP, Symfony, vos propres paquets, tous les a
 mesure chaque montée (patch, mineure, majeure) et ne fait que ce que votre politique
 autorise. Il réécrit `composer.json` quand une montée dépasse une contrainte
 (`7.4.*` -> `8.0.*`, `^0.3` -> `^0.4`), lance `composer update`, Rector si vous l'avez,
-puis vos tests, et écrit un rapport. Il ne pousse rien et ne déploie rien : il laisse
-une branche et un rapport à une personne, un bac à sable ou la CI.
+puis vos tests, et écrit un rapport. Il ne fusionne, ne pousse et ne déploie rien : il
+laisse une branche, un commit et un rapport à une personne, un bac à sable ou la CI (voir
+[Ce que fait Uplift, et ce qui reste à vous](#ce-que-fait-uplift-et-ce-qui-reste-à-vous)).
 
 *English documentation: [README.md](README.md)*
 
@@ -48,9 +49,11 @@ changer le code :
 | `UPLIFT_SYMFONY` | idem | `patch` | les paquets `symfony/*` tenus au `X.Y.*` du framework |
 | `UPLIFT_PACKAGES` | idem | `patch` | tous les autres paquets |
 | `UPLIFT_PHP_MAX` | une branche, ex. `8.1` | aucun | un plafond strict pour PHP (voir plus bas) |
-| `UPLIFT_OWN_VENDOR` | des vendors séparés par des virgules, ou `none` | `acencyril` | les paquets que vous publiez vous-même |
+| `UPLIFT_OWN_VENDOR` | des vendors séparés par des virgules, ou `none` | aucun | les paquets que vous publiez vous-même, ex. `acme` (voir [Vos propres paquets](#vos-propres-paquets)) |
 | `UPLIFT_TEST_COMMAND` | une commande shell | `vendor/bin/phpunit` | ce qui dit que la mise à jour marche ; vide : pas de tests |
 | `UPLIFT_ADOPT`, `UPLIFT_ADOPT_SKIP`, `UPLIFT_ADOPT_OPT_IN` | voir [Les nouveautés](#les-nouveautés-pas-seulement-les-dépréciations) | `propose` | |
+| `UPLIFT_HUMAN_VALIDATION` | `0`, `1` | `1` | recopiée dans `report.json` (`policy.human_validation`) pour le job qui lance Uplift : `1`, une mise à jour attend une personne ; `0`, votre job peut la fusionner. Uplift n'en fait rien d'autre (voir [plus bas](#ce-que-fait-uplift-et-ce-qui-reste-à-vous)) |
+| `UPLIFT_SKIP` | `paquet@version`, séparés par des virgules (`symfony@7.4.18` pour le framework) | aucun | des versions vers lesquelles ne jamais monter, ex. une que votre déploiement a retirée |
 
 Un niveau est la plus grande montée faite automatiquement. Au-delà, la montée est
 **proposée** dans le rapport et attend une personne. Avec les défauts, les patchs sont
@@ -59,13 +62,22 @@ appliqués et toute mineure ou majeure est seulement proposée. Une valeur fauss
 
 ### Vos propres paquets
 
+Par défaut, aucun vendor n'est « à vous » : chaque paquet suit `UPLIFT_PACKAGES`. Une
+entreprise qui publie ses propres paquets (sur Packagist, Private Packagist, Satis ou un
+dépôt Git) indique son vendor Composer, la partie avant le `/` :
+
+```dotenv
+UPLIFT_OWN_VENDOR=acme            # plusieurs : acme,acme-internal
+```
+
 Les paquets de `UPLIFT_OWN_VENDOR` montent d'eux-mêmes **jusqu'à une mineure**, quoi
 que dise `UPLIFT_PACKAGES` (plus loin si `UPLIFT_PACKAGES` autorise plus). Avant 1.0,
 la mineure est le niveau qui casse (`0.3` -> `0.4`) : vos paquets 0.x suivent donc
 leurs versions jusqu'au bout, puisque vous écrivez les deux côtés et les publiez
 ensemble. À partir de 1.0, une majeure casse volontairement une API stable : elle
-attend que quelqu'un lise ses notes de mise à jour. `UPLIFT_OWN_VENDOR=none` les traite
-comme les autres.
+attend que quelqu'un lise ses notes de mise à jour. Vide ou `none` : aucun vendor à vous.
+Avant 0.6, le défaut était `acencyril` (le vendor de l'auteur) ; voir
+[UPGRADE.md](UPGRADE.md).
 
 ### Un plafond PHP
 
@@ -169,7 +181,7 @@ refusé ; 0 sinon (y compris « désactivé » et « rien à faire »).
 
 La suite vous appartient : pousser la branche depuis la CI, ouvrir une demande de
 fusion, construire un bac à sable, essayer le changement dans votre admin avec
-Rehearsal.
+Rehearsal (voir [Ce que fait Uplift, et ce qui reste à vous](#ce-que-fait-uplift-et-ce-qui-reste-à-vous)).
 
 ## Les nouveautés, pas seulement les dépréciations
 
@@ -276,33 +288,125 @@ final class MyAdoption implements Adoption
 }
 ```
 
-## Configuration
+## Installation et configuration
 
-Seulement où sont les choses ; ce qui peut bouger, c'est la politique ci-dessus.
-
-```yaml
-# config/packages/uplift.yaml
-uplift:
-    report_dir: '%kernel.project_dir%/var/uplift'
-    composer: 'composer'
-    project_dir: '%kernel.project_dir%'
-    packagist_url: 'https://repo.packagist.org'
-    php_releases_url: 'https://www.php.net'
-    adopt_paths:                   # où uplift:adopt cherche
-        - 'src'
+```bash
+composer require acencyril/uplift-bundle
 ```
 
-Avec Symfony Flex, la recette enregistre le bundle, écrit ce fichier et ajoute les
-variables `UPLIFT_*` à `.env` avec les défauts prudents. Sans Flex :
+### Avec Symfony Flex
+
+La recette d'Uplift est dans [symfony/recipes-contrib](https://github.com/symfony/recipes-contrib).
+Flex n'applique une recette contrib que si le projet l'autorise : il le demande pendant
+`composer require`, ou autorisez-les avant avec
+`composer config extra.symfony.allow-contrib true`. La recette enregistre le bundle, écrit
+`config/packages/uplift.yaml` et ajoute les variables `UPLIFT_*` à `.env` avec les défauts
+prudents.
+
+> La recette publiée là-bas aujourd'hui est celle d'Uplift 0.1 : elle écrit
+> `UPLIFT_OWN_VENDOR=acencyril` et n'a pas les variables plus récentes. La recette 0.6 est
+> dans ce dépôt ([`recipe-contrib/`](recipe-contrib/acencyril/uplift-bundle/0.6)) et attend
+> d'y être fusionnée. D'ici là, après une installation par Flex, mettez dans
+> `UPLIFT_OWN_VENDOR` votre propre vendor, ou laissez-le vide.
+
+### À la main (sans Flex, ou sans les recettes contrib)
+
+Trois choses, les mêmes que la recette :
 
 ```php
 // config/bundles.php
 Acencyril\UpliftBundle\UpliftBundle::class => ['all' => true],
 ```
 
-## En CI
+```yaml
+# config/packages/uplift.yaml : seulement où sont les choses ; ce qui peut bouger, c'est la politique
+uplift:
+    report_dir: '%kernel.project_dir%/var/uplift'
+    composer: 'composer'                          # le binaire composer
+    project_dir: '%kernel.project_dir%'           # où est composer.json
+    packagist_url: 'https://repo.packagist.org'   # voir « Paquets privés »
+    php_releases_url: 'https://www.php.net'
+    adopt_paths:                                  # où uplift:adopt cherche
+        - 'src'
+```
 
-Uplift ne pousse pas : c'est le workflow qui pousse. Par exemple, une fois par mois :
+Chaque clé est facultative (les valeurs ci-dessus sont les défauts) ; le fichier peut se
+réduire à `uplift: ~`.
+
+```dotenv
+# .env : les défauts prudents (uplift:apply ne change rien avant UPLIFT_ENABLED=1)
+UPLIFT_ENABLED=0
+UPLIFT_PHP=patch
+UPLIFT_SYMFONY=patch
+UPLIFT_PACKAGES=patch
+UPLIFT_PHP_MAX=
+UPLIFT_OWN_VENDOR=
+UPLIFT_TEST_COMMAND="vendor/bin/phpunit"
+UPLIFT_ADOPT=propose
+UPLIFT_ADOPT_SKIP=
+UPLIFT_ADOPT_OPT_IN=
+UPLIFT_SKIP=
+UPLIFT_HUMAN_VALIDATION=1
+```
+
+Les valeurs qui changent d'une machine à l'autre (`UPLIFT_ENABLED=1` là où les mises à jour
+tournent) vont dans l'environnement du serveur ou de la CI, ou dans `.env.local`.
+
+## Paquets privés
+
+Uplift lit deux choses, et une seule passe par votre configuration Composer :
+
+- **Composer lui-même.** `uplift:plan` et `uplift:apply` lancent `composer outdated --direct`
+  et `composer update` dans le projet : les `repositories` du projet (Private Packagist,
+  Satis, dépôts `vcs`, dépôts `path`) et les identifiants de Composer s'appliquent comme
+  d'habitude : `auth.json` dans le projet ou dans `COMPOSER_HOME`, ou la variable
+  `COMPOSER_AUTH`. Un piège : les commandes lancées par Uplift n'héritent pas des variables
+  que le Dotenv de Symfony a chargées depuis vos fichiers `.env*` (exprès, voir l'entrée
+  0.1.1 du [CHANGELOG](CHANGELOG.md)) ; mettez donc `COMPOSER_AUTH` dans le vrai
+  environnement (un secret de CI, l'environnement du serveur) ou utilisez `auth.json`, pas
+  `.env.local`.
+- **La liste des versions.** Pour avancer une marche à la fois et vérifier le PHP demandé
+  par chaque version, Uplift lit les métadonnées du Packagist public (`packagist_url`,
+  `/p2/<vendor>/<paquet>.json`), sans identifiants. Un paquet privé n'y est pas (404) :
+  Uplift ne connaît alors que la dernière version que `composer outdated` donne pour lui. Il
+  vise directement cette version, sans les marches intermédiaires, et ne peut pas la bloquer
+  pour son PHP ; `composer update` et vos tests décident quand même. N'utilisez pas
+  `--no-outdated` sur ces projets : les paquets privés ne seraient pas vus du tout.
+
+`packagist_url` remplace Packagist pour tous les paquets et n'envoie aucun identifiant :
+n'y touchez pas, sauf miroir public au même format `/p2/`. Et donnez à vos paquets privés
+un vendor que personne n'utilise sur Packagist : si le même nom y existe, Uplift lit les
+versions publiques.
+
+## Ce que fait Uplift, et ce qui reste à vous
+
+Ce que fait le bundle, dans la copie de travail où il tourne :
+
+1. il planifie les montées selon la politique (`uplift:plan`) ;
+2. avec `UPLIFT_ENABLED=1`, `uplift:apply` y répète la mise à jour : sur une nouvelle
+   branche avec `--branch`, il réécrit `composer.json`, lance `composer update`, Rector,
+   puis votre commande de tests, et remet `composer.json` et `composer.lock` en place si
+   composer refuse ;
+3. il commite le résultat sur cette branche avec `--commit` ;
+4. il écrit `var/uplift/report.json` et `report.md` (le `status` : `passed`,
+   `tests_failed`, `composer_failed`, `untested`, `nothing_to_do`, `disabled`, `refused` ;
+   et la politique, `human_validation` compris) ;
+5. avec `--rehearsal=FICHIER`, il inscrit le passage comme un changement que
+   [Rehearsal](https://github.com/acencyril/rehearsal-bundle) permet de valider ou rejeter
+   dans votre admin.
+
+Ce qu'il ne fait **pas**, et qui reste le travail du projet : pousser la branche, ouvrir
+la demande de fusion, fusionner, déployer, vérifier le site ensuite, revenir en arrière.
+`UPLIFT_HUMAN_VALIDATION` et `UPLIFT_SKIP` servent à ce travail : la première est recopiée
+dans le rapport pour que votre job la lise (fusionner seul ou attendre une personne) ; la
+seconde est lue par Uplift, qui ne monte jamais vers une version qu'elle cite ; votre job y
+ajoute une version après l'avoir retirée.
+
+Faites-le tourner dans une copie de travail prévue pour (un checkout de CI, un clone à part
+sur le serveur), jamais dans le dossier d'où votre site est servi : il y change `vendor/`,
+`composer.json` et `composer.lock`.
+
+### GitHub Actions : une branche et une pull request, une fois par mois
 
 ```yaml
 name: uplift
@@ -310,11 +414,13 @@ on:
     schedule:
         -
             cron: '17 4 1 * *'
+    workflow_dispatch: ~
 jobs:
     upgrade:
         runs-on: ubuntu-latest
         permissions:
             contents: write
+            pull-requests: write
         env:
             UPLIFT_ENABLED: '1'
         steps:
@@ -335,23 +441,92 @@ jobs:
                     git config user.email "uplift@users.noreply.github.com"
                     php bin/console uplift:apply --branch="$branch" --commit --adopt
             -
-                # Aussi après des tests en échec (uplift:apply sort en 1, le job reste
-                # rouge) : la branche et son rapport sont là pour être lus. Un push qui
-                # échoue fait échouer le job.
+                # Also after failed tests (uplift:apply exits 1, the job stays red): the
+                # branch and its report are there for a person to read. A failed push
+                # fails the job. The pull request is opened only when the tests passed.
                 if: ${{ !cancelled() }}
                 env:
                     BRANCH: ${{ steps.apply.outputs.branch }}
+                    GH_TOKEN: ${{ github.token }}
                 run: |
-                    if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
-                        git push origin "$BRANCH"
-                    else
-                        echo "No $BRANCH branch: nothing moved, nothing to push."
+                    if ! git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+                        echo "No $BRANCH branch: nothing moved, nothing to push."; exit 0
+                    fi
+                    git push origin "$BRANCH"
+                    status=$(php -r 'echo json_decode(file_get_contents("var/uplift/report.json"))->status;')
+                    if [ "$status" = passed ]; then
+                        gh pr create --head "$BRANCH" --title "Uplift: $BRANCH" --body-file var/uplift/report.md
                     fi
 ```
 
 La branche n'existe que si quelque chose a bougé. Une branche du même nom déjà sur le
-dépôt (un deuxième passage dans le mois) fait échouer le push, exprès : fusionnez-la
-ou supprimez-la d'abord.
+dépôt distant (un second passage dans le mois) fait échouer la poussée, exprès : fusionnez
+ou supprimez-la d'abord. `gh pr create` demande « Allow GitHub Actions to create and
+approve pull requests » dans les réglages du dépôt (Actions → General) ; et une pull
+request ouverte avec `github.token` ne lance pas vos autres workflows : prenez un jeton
+personnel ou un jeton d'application GitHub si vos tests doivent y tourner.
+
+### GitLab CI : une branche et une merge request
+
+Dans un pipeline planifié, avec un jeton d'accès au projet (portée `write_repository`) dans
+la variable masquée `UPLIFT_PUSH_TOKEN` :
+
+```yaml
+uplift:
+    image: your-php-image:8.3        # your PHP, with git and composer
+    rules:
+        -
+            if: '$CI_PIPELINE_SOURCE == "schedule"'
+    variables:
+        UPLIFT_ENABLED: '1'
+    script:
+        - git config user.name "uplift" && git config user.email "uplift@example.com"
+        - git checkout -B "$CI_DEFAULT_BRANCH" "origin/$CI_DEFAULT_BRANCH"
+        - composer install --no-interaction
+        - BRANCH="upgrade/$(date +%Y-%m)"
+        - php bin/console uplift:apply --branch="$BRANCH" --commit || true
+        - git show-ref --verify --quiet "refs/heads/$BRANCH" || { echo "nothing moved"; exit 0; }
+        - STATUS=$(php -r 'echo json_decode(file_get_contents("var/uplift/report.json"))->status;')
+        - >
+            git push "https://uplift:${UPLIFT_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" "$BRANCH"
+            -o merge_request.create -o merge_request.target="$CI_DEFAULT_BRANCH"
+            -o merge_request.title="Uplift: $BRANCH ($STATUS)"
+        - test "$STATUS" = passed
+```
+
+La merge request est ouverte quel que soit le résultat des tests, avec le statut dans son
+titre, et le job échoue s'ils ont échoué.
+
+### Une ligne de cron sur un serveur
+
+Dans un clone gardé pour les mises à jour (ici `/srv/uplift/app`, avec `UPLIFT_ENABLED=1`
+dans son `.env.local`), le premier du mois à 4 h 17 (`%` s'échappe dans une crontab) :
+
+```cron
+17 4 1 * * cd /srv/uplift/app && git fetch -q origin && git checkout -q main && git reset -q --hard origin/main && composer install -q --no-interaction && php bin/console uplift:apply --branch=upgrade/$(date +\%Y-\%m) --commit && git push -q origin HEAD
+```
+
+`git push origin HEAD` pousse la branche de mise à jour quand il y en a une, et rien sinon
+(HEAD est alors `main`, déjà à jour). Si les tests échouent, rien n'est poussé : la branche
+et `var/uplift/report.md` restent dans ce clone, et cron envoie la sortie par mail.
+
+### Fusionner sans personne, et revenir en arrière
+
+Fusionner sans personne une mise à jour dont les tests passent est un choix de votre job ;
+`UPLIFT_HUMAN_VALIDATION` permet à chaque site de l'écrire là où le job peut le lire
+(`report.json`, `policy.human_validation`). Un job qui fusionne seul, en général :
+
+1. lance `uplift:apply` sur une branche partie de celle qui est déployée, et ne la
+   fusionne que si `status` vaut `passed` (jamais `untested`) et `human_validation` est faux ;
+2. déploie comme d'habitude, vérifie que le site répond et, sinon, revient à la version
+   précédente et annule le commit de mise à jour ;
+3. ajoute chaque `paquet@version` monté (`result.applied` dans `report.json`) à
+   `UPLIFT_SKIP`, pour que le passage suivant prenne la version d'après.
+
+La part d'Uplift, ce sont les étapes 1 (la mise à jour et le rapport) et 3 (sauter ce qui
+est listé) ; la fusion, le déploiement, la vérification et le retour arrière sont ceux de
+votre déploiement. Les serveurs de l'auteur les font avec un job shell, en dehors de ce
+bundle.
 
 ## Les projets anciens
 

@@ -38,7 +38,7 @@ final class CommandTest extends TestCase
     /** @param array<string, string> $env */
     private function command(string $name, array $env = []): CommandTester
     {
-        foreach ($env as $k => $v) {
+        foreach ($env + ['UPLIFT_OWN_VENDOR' => 'acencyril'] as $k => $v) {
             $_SERVER[$k] = $v;
         }
         $this->kernel = new TestKernel('test', true, $this->dir);

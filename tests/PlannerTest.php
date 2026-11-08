@@ -21,7 +21,7 @@ final class PlannerTest extends TestCase
     private static function plan(string $fixture, array $env = [], ?FixedReleaseSource $source = null, ?OutdatedReport $outdated = null, ?FixedPhpSource $php = null): Plan
     {
         return (new Planner($source ?? FixedReleaseSource::standard(), $php ?? new FixedPhpSource()))
-            ->plan(new ComposerProject(__DIR__.'/Fixtures/'.$fixture), Policy::fromEnv($env + ['UPLIFT_ENABLED' => '1']), $outdated, '8.3.12');
+            ->plan(new ComposerProject(__DIR__.'/Fixtures/'.$fixture), Policy::fromEnv($env + ['UPLIFT_ENABLED' => '1', 'UPLIFT_OWN_VENDOR' => 'acencyril']), $outdated, '8.3.12');
     }
 
     /** @return array<string, string> "package decision" => "from -> to level" */
@@ -266,6 +266,15 @@ final class PlannerTest extends TestCase
         self::assertSame('requires PHP >=8.2, above UPLIFT_PHP_MAX=8.1', self::move($plan, 'symfony/*', 'blocked')->reason);
         self::assertSame(['3.9.0'], self::move($plan, 'monolog/monolog', 'apply')->later);
         self::assertContains('PHP 8.1 is no longer supported by php.net (latest release 8.1.33).', $plan->notes);
+    }
+
+    public function testWithoutAnOwnVendorEveryPackageFollowsUpliftPackages(): void
+    {
+        $plan = (new Planner(FixedReleaseSource::standard(), new FixedPhpSource()))
+            ->plan(new ComposerProject(__DIR__.'/Fixtures/site'), Policy::fromEnv(['UPLIFT_ENABLED' => '1']), null, '8.3.12');
+        $move = self::move($plan, 'acencyril/sentinelle-bundle', 'propose');
+        self::assertSame('other', $move->category, 'since 0.6 no vendor is "own" by default');
+        self::assertStringContainsString('UPLIFT_PACKAGES=patch', $move->reason);
     }
 
     public function testOffMeansProposedOnly(): void

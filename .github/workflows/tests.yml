@@ -12,8 +12,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # every PHP and Symfony line composer.json accepts, oldest first (the LTS lines a company runs)
+          - { php: '8.1', symfony: '6.4.*' }
+          - { php: '8.2', symfony: '7.4.*' }
           - { php: '8.3', symfony: '' }
           - { php: '8.4', symfony: '8.*' }
+          - { php: '8.5', symfony: '8.*' }
     name: PHP ${{ matrix.php }}${{ matrix.symfony && format(' / Symfony {0}', matrix.symfony) || '' }}
     env:
       SYMFONY_REQUIRE: ${{ matrix.symfony }}
@@ -21,9 +25,22 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with: { php-version: '${{ matrix.php }}', coverage: none, tools: 'composer, flex' }
+      - run: composer validate --strict
       - run: composer update --no-interaction --no-progress --prefer-dist
       - run: vendor/bin/phpunit --log-junit junit.xml
       - name: Report failures as annotations
         if: failure()
         run: |
+          [ -f junit.xml ] || exit 0
           php -r '$x = simplexml_load_file("junit.xml"); foreach ($x->xpath("//testcase[failure or error]") as $t) { $m = (string) ($t->failure ?: $t->error); echo "::error title=".$t["class"]."::".$t["name"].": ".str_replace(["\r","\n"], " ", substr($m, 0, 600)).PHP_EOL; }'
+
+  # What a project installing Uplift today gets: the newest dependencies composer.json allows,
+  # audited. A known vulnerable dependency fails the build.
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with: { php-version: '8.4', coverage: none, tools: composer }
+      - run: composer update --no-interaction --no-progress --quiet && composer audit --abandoned=report

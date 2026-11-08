@@ -6,6 +6,30 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **No own vendor by default** (behaviour change): `UPLIFT_OWN_VENDOR` used to default to
+  `acencyril`, the author's vendor, so in any project those packages moved up to a minor on
+  their own. It now defaults to none: every package follows `UPLIFT_PACKAGES` until the
+  project names its own vendors (`UPLIFT_OWN_VENDOR=acme`). To keep the old behaviour, set
+  `UPLIFT_OWN_VENDOR=acencyril` (see `UPGRADE.md`).
+- The Flex recipe moved from `recipe/` to `recipe-contrib/acencyril/uplift-bundle/0.6/`, the
+  symfony/recipes-contrib layout, ready to be submitted there (see `CONTRIBUTING.md`). It
+  writes `UPLIFT_OWN_VENDOR=` (empty) and documents it.
+- Reports state the right Uplift version (they still wrote 0.3.1).
+
+### Added
+- README: installing by hand (bundle, config file, env lines), how Uplift behaves with
+  private packages (Private Packagist, Satis, Git repositories), and what the bundle does
+  versus what stays the project's job (push, pull or merge request, merge, deploy,
+  rollback), with GitHub Actions, GitLab CI and cron examples. The previous text described
+  merging, deploying and rolling back as if Uplift did them: it never did.
+- `SECURITY.md`: private reporting through GitHub, answer within 72 hours, fix within 7
+  days, supported versions, the PHP and Symfony lines tested, SemVer rules for 0.x.
+- `UPGRADE.md` and `CONTRIBUTING.md`.
+- CI: every PHP and Symfony line composer.json accepts (PHP 8.1 / Symfony 6.4 up to PHP
+  8.5 / Symfony 8), `composer validate --strict`, and `composer audit` on the newest
+  dependencies a project would get.
+
 ## [0.5.0] — 2026-10-29
 
 ### Added
@@ -162,7 +186,10 @@ First release.
 - `uplift:apply --adopt`: looks for the new features after the version move, rewrites
   them only after a move whose tests passed, in a commit of their own with `--commit`.
 
-[Unreleased]: https://github.com/acencyril/uplift-bundle/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/acencyril/uplift-bundle/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/acencyril/uplift-bundle/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/acencyril/uplift-bundle/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/acencyril/uplift-bundle/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/acencyril/uplift-bundle/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/acencyril/uplift-bundle/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/acencyril/uplift-bundle/compare/v0.1.1...v0.2.0
